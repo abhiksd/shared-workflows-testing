@@ -1,0 +1,99 @@
+name: 'Check Changes'
+description: 'Determines if deployment is needed based on file changes'
+
+inputs:
+  application_name:
+    description: 'Application name'
+    required: true
+  build_context:
+    description: 'Build context path'
+    required: true
+  force_deploy:
+    description: 'Force deployment'
+    required: false
+    default: 'false'
+
+outputs:
+  should_deploy:
+    description: 'Whether deployment should proceed'
+    value: ${{ steps.changes.outputs.should_deploy }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Check for changes
+      id: changes
+      run: |
+        echo "Checking changes for application: ${{ inputs.application_name }}"
+        echo "Build context: ${{ inputs.build_context }}"
+        echo "Force deploy: ${{ inputs.force_deploy }}"
+        
+        SHOULD_DEPLOY="false"
+        
+        # Always deploy if force_deploy is true
+        if [[ "${{ inputs.force_deploy }}" == "true" ]]; then
+          echo "Force deployment enabled"
+          SHOULD_DEPLOY="true"
+        else
+          # Check if this is a tag push or release branch
+          if [[ "${{ github.ref }}" == refs/tags/* ]] || [[ "${{ github.ref }}" == refs/heads/release/* ]]; then
+            echo "Tag push or release branch detected - deploying"
+            SHOULD_DEPLOY="true"
+          else
+            # Check for file changes in the last commit
+            if [[ "${{ github.event_name }}" == "push" ]]; then
+              # Get the list of changed files in the push
+              CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} 2>/dev/null || echo "")
+              
+              if [[ -z "${CHANGED_FILES}" ]]; then
+                echo "No file changes detected in push event"
+                # For push events without before SHA, assume changes exist
+                SHOULD_DEPLOY="true"
+              else
+                echo "Changed files:"
+                echo "${CHANGED_FILES}"
+                
+                # Check if any changed files are relevant to this application
+                RELEVANT_CHANGES="false"
+                
+                # Check if changes are in the build context
+                if echo "${CHANGED_FILES}" | grep -q "^${{ inputs.build_context }}/"; then
+                  echo "Changes detected in build context: ${{ inputs.build_context }}"
+                  RELEVANT_CHANGES="true"
+                fi
+                
+                # Check for Dockerfile changes
+                if echo "${CHANGED_FILES}" | grep -q "Dockerfile"; then
+                  echo "Dockerfile changes detected"
+                  RELEVANT_CHANGES="true"
+                fi
+                
+                # Check for helm chart changes
+                if echo "${CHANGED_FILES}" | grep -q "helm/"; then
+                  echo "Helm chart changes detected"
+                  RELEVANT_CHANGES="true"
+                fi
+                
+                # Check for workflow changes
+                if echo "${CHANGED_FILES}" | grep -q "\.github/"; then
+                  echo "Workflow changes detected"
+                  RELEVANT_CHANGES="true"
+                fi
+                
+                if [[ "${RELEVANT_CHANGES}" == "true" ]]; then
+                  SHOULD_DEPLOY="true"
+                else
+                  echo "No relevant changes detected for this application"
+                fi
+              fi
+            else
+              # For other events (like workflow_dispatch), deploy by default
+              echo "Non-push event detected - deploying"
+              SHOULD_DEPLOY="true"
+            fi
+          fi
+        fi
+        
+        echo "Should deploy: ${SHOULD_DEPLOY}"
+        echo "should_deploy=${SHOULD_DEPLOY}" >> $GITHUB_OUTPUT
+      shell: bash

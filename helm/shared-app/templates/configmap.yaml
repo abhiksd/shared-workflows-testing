@@ -1,0 +1,25 @@
+{{- if .Values.configMap.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "shared-app.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "shared-app.labels" . | nindent 4 }}
+data:
+  {{- range $key, $value := .Values.configMap.data }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+  # Environment-specific configuration
+  environment: {{ .Values.global.environment | quote }}
+  application.name: {{ .Values.global.applicationName | quote }}
+  application.type: {{ .Values.global.applicationType | quote }}
+  # Application configuration based on type
+  {{- if eq .Values.global.applicationType "java-springboot" }}
+  server.port: {{ .Values.service.port | quote }}
+  management.endpoints.web.exposure.include: "health,info,metrics,prometheus"
+  management.endpoint.health.show-details: "always"
+  {{- else if eq .Values.global.applicationType "nodejs" }}
+  PORT: {{ .Values.service.port | quote }}
+  {{- end }}
+{{- end }}

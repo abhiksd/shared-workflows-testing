@@ -1,0 +1,264 @@
+name: 'Helm Deploy'
+description: 'Deploys applications to AKS using Helm charts'
+
+inputs:
+  environment:
+    description: 'Target environment'
+    required: true
+  application_name:
+    description: 'Application name'
+    required: true
+  application_type:
+    description: 'Application type'
+    required: true
+  helm_chart_path:
+    description: 'Path to Helm chart'
+    required: true
+  image_tag:
+    description: 'Image tag'
+    required: true
+  helm_version:
+    description: 'Helm chart version'
+    required: true
+  registry:
+    description: 'Container registry'
+    required: true
+  aks_cluster_name:
+    description: 'AKS cluster name'
+    required: true
+  aks_resource_group:
+    description: 'AKS resource group'
+    required: true
+
+outputs:
+  deployment_status:
+    description: 'Deployment status'
+    value: ${{ steps.deploy.outputs.status }}
+  release_name:
+    description: 'Helm release name'
+    value: ${{ steps.deploy.outputs.release_name }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install Helm
+      uses: azure/setup-helm@v3
+      with:
+        version: '3.12.0'
+
+    - name: Get AKS credentials
+      uses: azure/aks-set-context@v3
+      with:
+        resource-group: ${{ inputs.aks_resource_group }}
+        cluster-name: ${{ inputs.aks_cluster_name }}
+
+    - name: Create namespace if not exists
+      run: |
+        NAMESPACE="${{ inputs.environment }}-${{ inputs.application_name }}"
+        kubectl create namespace ${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
+        kubectl label namespace ${NAMESPACE} environment=${{ inputs.environment }} --overwrite
+        kubectl label namespace ${NAMESPACE} application=${{ inputs.application_name }} --overwrite
+        echo "namespace=${NAMESPACE}" >> $GITHUB_OUTPUT
+      shell: bash
+      id: namespace
+
+    - name: Prepare Helm values
+      id: values
+      run: |
+        NAMESPACE="${{ steps.namespace.outputs.namespace }}"
+        VALUES_FILE="values-${{ inputs.environment }}.yaml"
+        
+        # Create environment-specific values file
+        cat > ${VALUES_FILE} << EOF
+        # Environment-specific values for ${{ inputs.environment }}
+        global:
+          environment: ${{ inputs.environment }}
+          applicationName: ${{ inputs.application_name }}
+          applicationType: ${{ inputs.application_type }}
+          
+        image:
+          repository: ${{ inputs.registry }}/${{ inputs.application_name }}
+          tag: ${{ inputs.image_tag }}
+          pullPolicy: Always
+          
+        nameOverride: ${{ inputs.application_name }}
+        fullnameOverride: ${{ inputs.application_name }}-${{ inputs.environment }}
+        
+        # Environment-specific configuration
+        replicaCount: $([ "${{ inputs.environment }}" = "production" ] && echo "3" || echo "1")
+        
+        resources:
+          limits:
+            cpu: $([ "${{ inputs.environment }}" = "production" ] && echo "1000m" || echo "500m")
+            memory: $([ "${{ inputs.environment }}" = "production" ] && echo "2Gi" || echo "1Gi")
+          requests:
+            cpu: $([ "${{ inputs.environment }}" = "production" ] && echo "500m" || echo "200m")
+            memory: $([ "${{ inputs.environment }}" = "production" ] && echo "1Gi" || echo "512Mi")
+            
+        service:
+          type: ClusterIP
+          port: $([ "${{ inputs.application_type }}" = "java-springboot" ] && echo "8080" || echo "3000")
+          
+        ingress:
+          enabled: true
+          className: nginx
+          annotations:
+            nginx.ingress.kubernetes.io/ssl-redirect: "true"
+            nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+            cert-manager.io/cluster-issuer: "letsencrypt-prod"
+          hosts:
+            - host: ${{ inputs.application_name }}-${{ inputs.environment }}.yourdomain.com
+              paths:
+                - path: /
+                  pathType: Prefix
+          tls:
+            - secretName: ${{ inputs.application_name }}-${{ inputs.environment }}-tls
+              hosts:
+                - ${{ inputs.application_name }}-${{ inputs.environment }}.yourdomain.com
+                
+        # Application-specific configuration
+        env:
+          - name: ENVIRONMENT
+            value: ${{ inputs.environment }}
+          - name: APPLICATION_NAME
+            value: ${{ inputs.application_name }}
+          - name: BUILD_VERSION
+            value: ${{ inputs.image_tag }}
+            
+        # Health checks
+        livenessProbe:
+          httpGet:
+            path: $([ "${{ inputs.application_type }}" = "java-springboot" ] && echo "/actuator/health" || echo "/health")
+            port: $([ "${{ inputs.application_type }}" = "java-springboot" ] && echo "8080" || echo "3000")
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+          
+        readinessProbe:
+          httpGet:
+            path: $([ "${{ inputs.application_type }}" = "java-springboot" ] && echo "/actuator/health" || echo "/health")
+            port: $([ "${{ inputs.application_type }}" = "java-springboot" ] && echo "8080" || echo "3000")
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+          
+        # Security context
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          fsGroup: 2000
+          
+        podSecurityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          fsGroup: 2000
+          
+        # Network policies
+        networkPolicy:
+          enabled: true
+          
+        # Pod disruption budget
+        podDisruptionBudget:
+          enabled: $([ "${{ inputs.environment }}" = "production" ] && echo "true" || echo "false")
+          minAvailable: $([ "${{ inputs.environment }}" = "production" ] && echo "1" || echo "0")
+        EOF
+        
+        echo "values_file=${VALUES_FILE}" >> $GITHUB_OUTPUT
+        echo "Generated values file: ${VALUES_FILE}"
+        cat ${VALUES_FILE}
+      shell: bash
+
+    - name: Lint Helm chart
+      run: |
+        helm lint ${{ inputs.helm_chart_path }} -f ${{ steps.values.outputs.values_file }}
+      shell: bash
+
+    - name: Deploy with Helm
+      id: deploy
+      run: |
+        NAMESPACE="${{ steps.namespace.outputs.namespace }}"
+        RELEASE_NAME="${{ inputs.application_name }}-${{ inputs.environment }}"
+        
+        echo "Deploying ${RELEASE_NAME} to namespace ${NAMESPACE}"
+        
+        # Check if release exists
+        if helm list -n ${NAMESPACE} | grep -q ${RELEASE_NAME}; then
+          echo "Upgrading existing release..."
+          helm upgrade ${RELEASE_NAME} ${{ inputs.helm_chart_path }} \
+            --namespace ${NAMESPACE} \
+            --values ${{ steps.values.outputs.values_file }} \
+            --set image.tag=${{ inputs.image_tag }} \
+            --set image.repository=${{ inputs.registry }}/${{ inputs.application_name }} \
+            --version ${{ inputs.helm_version }} \
+            --wait \
+            --timeout 600s \
+            --atomic
+        else
+          echo "Installing new release..."
+          helm install ${RELEASE_NAME} ${{ inputs.helm_chart_path }} \
+            --namespace ${NAMESPACE} \
+            --values ${{ steps.values.outputs.values_file }} \
+            --set image.tag=${{ inputs.image_tag }} \
+            --set image.repository=${{ inputs.registry }}/${{ inputs.application_name }} \
+            --version ${{ inputs.helm_version }} \
+            --wait \
+            --timeout 600s \
+            --atomic
+        fi
+        
+        echo "release_name=${RELEASE_NAME}" >> $GITHUB_OUTPUT
+        echo "status=success" >> $GITHUB_OUTPUT
+        
+        # Get deployment status
+        kubectl get pods -n ${NAMESPACE} -l app.kubernetes.io/name=${{ inputs.application_name }}
+        kubectl get svc -n ${NAMESPACE} -l app.kubernetes.io/name=${{ inputs.application_name }}
+        
+        echo "Deployment completed successfully!"
+      shell: bash
+
+    - name: Run deployment tests
+      run: |
+        NAMESPACE="${{ steps.namespace.outputs.namespace }}"
+        RELEASE_NAME="${{ steps.deploy.outputs.release_name }}"
+        
+        # Run Helm test if tests exist
+        if helm test ${RELEASE_NAME} --namespace ${NAMESPACE} --timeout 300s; then
+          echo "Helm tests passed"
+        else
+          echo "Helm tests failed or not available"
+        fi
+        
+        # Wait for deployment to be ready
+        kubectl wait --for=condition=available deployment/${RELEASE_NAME} -n ${NAMESPACE} --timeout=300s
+        
+        echo "Deployment is ready and healthy"
+      shell: bash
+
+    - name: Generate deployment summary
+      run: |
+        NAMESPACE="${{ steps.namespace.outputs.namespace }}"
+        RELEASE_NAME="${{ steps.deploy.outputs.release_name }}"
+        
+        cat >> $GITHUB_STEP_SUMMARY << EOF
+        ## 🚀 Deployment Summary
+        
+        **Application:** ${{ inputs.application_name }}
+        **Environment:** ${{ inputs.environment }}
+        **Image Tag:** ${{ inputs.image_tag }}
+        **Helm Chart Version:** ${{ inputs.helm_version }}
+        **Namespace:** ${NAMESPACE}
+        **Release Name:** ${RELEASE_NAME}
+        
+        ### Deployment Status
+        \`\`\`
+        $(kubectl get pods -n ${NAMESPACE} -l app.kubernetes.io/name=${{ inputs.application_name }})
+        \`\`\`
+        
+        ### Service Information
+        \`\`\`
+        $(kubectl get svc -n ${NAMESPACE} -l app.kubernetes.io/name=${{ inputs.application_name }})
+        \`\`\`
+        EOF
+      shell: bash

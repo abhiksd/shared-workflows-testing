@@ -1,0 +1,163 @@
+name: 'Create Release'
+description: 'Creates GitHub releases and tags for production deployments'
+
+inputs:
+  version:
+    description: 'Version to release'
+    required: true
+  application_name:
+    description: 'Application name'
+    required: true
+
+outputs:
+  release_url:
+    description: 'URL of the created release'
+    value: ${{ steps.create_release.outputs.html_url }}
+  tag_name:
+    description: 'Created tag name'
+    value: ${{ steps.create_release.outputs.tag_name }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Configure Git
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+      shell: bash
+
+    - name: Generate release notes
+      id: release_notes
+      run: |
+        # Get the previous release tag
+        PREVIOUS_TAG=$(git tag --sort=-version:refname | head -1 2>/dev/null || echo "")
+        
+        if [[ -z "${PREVIOUS_TAG}" ]]; then
+          echo "No previous tags found, creating initial release notes"
+          RELEASE_NOTES="Initial release of ${{ inputs.application_name }} version ${{ inputs.version }}"
+        else
+          echo "Previous tag: ${PREVIOUS_TAG}"
+          # Generate release notes from commits since last tag
+          RELEASE_NOTES=$(cat << EOF
+        # Release ${{ inputs.version }}
+        
+        ## Changes since ${PREVIOUS_TAG}
+        
+        $(git log ${PREVIOUS_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges | head -20)
+        
+        ## Application Information
+        - **Application:** ${{ inputs.application_name }}
+        - **Version:** ${{ inputs.version }}
+        - **Build Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+        - **Commit:** ${GITHUB_SHA}
+        
+        ## Deployment Information
+        This release has been automatically deployed to production.
+        
+        ## Docker Image
+        \`\`\`
+        docker pull \${ACR_LOGIN_SERVER}/${{ inputs.application_name }}:${{ inputs.version }}
+        \`\`\`
+        EOF
+        )
+        fi
+        
+        # Save release notes to file
+        echo "${RELEASE_NOTES}" > release_notes.md
+        
+        # Also output for GitHub Actions
+        echo "release_notes<<EOF" >> $GITHUB_OUTPUT
+        echo "${RELEASE_NOTES}" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+        echo "Generated release notes:"
+        cat release_notes.md
+      shell: bash
+
+    - name: Create or update tag
+      run: |
+        TAG_NAME="${{ inputs.version }}"
+        
+        # Check if tag already exists
+        if git tag -l | grep -q "^${TAG_NAME}$"; then
+          echo "Tag ${TAG_NAME} already exists, updating..."
+          git tag -d ${TAG_NAME}
+          git push origin :refs/tags/${TAG_NAME} || true
+        fi
+        
+        # Create new tag
+        git tag -a ${TAG_NAME} -m "Release ${{ inputs.application_name }} ${TAG_NAME}"
+        git push origin ${TAG_NAME}
+        
+        echo "Created and pushed tag: ${TAG_NAME}"
+      shell: bash
+
+    - name: Create GitHub Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      with:
+        tag_name: ${{ inputs.version }}
+        release_name: ${{ inputs.application_name }} ${{ inputs.version }}
+        body_path: release_notes.md
+        draft: false
+        prerelease: false
+
+    - name: Upload release artifacts
+      run: |
+        RELEASE_ID="${{ steps.create_release.outputs.id }}"
+        
+        # Create deployment info file
+        cat > deployment-info.json << EOF
+        {
+          "application_name": "${{ inputs.application_name }}",
+          "version": "${{ inputs.version }}",
+          "build_date": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+          "commit_sha": "${GITHUB_SHA}",
+          "commit_ref": "${GITHUB_REF}",
+          "repository": "${GITHUB_REPOSITORY}",
+          "workflow_run_id": "${GITHUB_RUN_ID}",
+          "workflow_run_number": "${GITHUB_RUN_NUMBER}",
+          "actor": "${GITHUB_ACTOR}"
+        }
+        EOF
+        
+        # Upload deployment info as release asset
+        curl -X POST \
+          -H "Authorization: token ${{ github.token }}" \
+          -H "Content-Type: application/json" \
+          --data-binary @deployment-info.json \
+          "https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?name=deployment-info.json"
+        
+        echo "Uploaded deployment info to release"
+      shell: bash
+
+    - name: Generate release summary
+      run: |
+        cat >> $GITHUB_STEP_SUMMARY << EOF
+        ## 🎉 Release Created
+        
+        **Application:** ${{ inputs.application_name }}
+        **Version:** ${{ inputs.version }}
+        **Release URL:** ${{ steps.create_release.outputs.html_url }}
+        **Tag:** ${{ inputs.version }}
+        
+        ### Release Information
+        - **Created:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+        - **Commit:** ${GITHUB_SHA}
+        - **Actor:** ${GITHUB_ACTOR}
+        - **Workflow:** ${GITHUB_WORKFLOW}
+        
+        ### Next Steps
+        - [ ] Verify deployment in production
+        - [ ] Update documentation if needed
+        - [ ] Monitor application health
+        - [ ] Notify stakeholders
+        
+        ### Quick Links
+        - [View Release](${{ steps.create_release.outputs.html_url }})
+        - [View Commit](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA})
+        - [View Workflow Run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})
+        EOF
+      shell: bash

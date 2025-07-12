@@ -1,0 +1,152 @@
+name: Shared AKS Deployment Workflow
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Target environment (dev, staging, production)'
+        required: true
+        type: string
+      application_name:
+        description: 'Application name'
+        required: true
+        type: string
+      application_type:
+        description: 'Application type (java-springboot, nodejs)'
+        required: true
+        type: string
+      build_context:
+        description: 'Docker build context path'
+        required: false
+        type: string
+        default: '.'
+      dockerfile_path:
+        description: 'Path to Dockerfile'
+        required: false
+        type: string
+        default: 'Dockerfile'
+      helm_chart_path:
+        description: 'Path to Helm chart'
+        required: false
+        type: string
+        default: 'helm'
+      force_deploy:
+        description: 'Force deployment even if no changes detected'
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      AZURE_CREDENTIALS:
+        description: 'Azure Service Principal credentials'
+        required: true
+      ACR_LOGIN_SERVER:
+        description: 'Azure Container Registry login server'
+        required: true
+      ACR_USERNAME:
+        description: 'Azure Container Registry username'
+        required: true
+      ACR_PASSWORD:
+        description: 'Azure Container Registry password'
+        required: true
+      AKS_CLUSTER_NAME:
+        description: 'AKS cluster name'
+        required: true
+      AKS_RESOURCE_GROUP:
+        description: 'AKS resource group'
+        required: true
+
+env:
+  REGISTRY: ${{ secrets.ACR_LOGIN_SERVER }}
+  
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      image_tag: ${{ steps.version.outputs.image_tag }}
+      helm_version: ${{ steps.version.outputs.helm_version }}
+      should_deploy: ${{ steps.changes.outputs.should_deploy }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version and tags
+        id: version
+        uses: ./.github/actions/version-strategy
+        with:
+          environment: ${{ inputs.environment }}
+          application_name: ${{ inputs.application_name }}
+
+      - name: Check for changes
+        id: changes
+        uses: ./.github/actions/check-changes
+        with:
+          application_name: ${{ inputs.application_name }}
+          build_context: ${{ inputs.build_context }}
+          force_deploy: ${{ inputs.force_deploy }}
+
+  build:
+    runs-on: ubuntu-latest
+    needs: setup
+    if: needs.setup.outputs.should_deploy == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build and push Docker image
+        uses: ./.github/actions/docker-build-push
+        with:
+          application_name: ${{ inputs.application_name }}
+          application_type: ${{ inputs.application_type }}
+          build_context: ${{ inputs.build_context }}
+          dockerfile_path: ${{ inputs.dockerfile_path }}
+          image_tag: ${{ needs.setup.outputs.image_tag }}
+          registry: ${{ env.REGISTRY }}
+          registry_username: ${{ secrets.ACR_USERNAME }}
+          registry_password: ${{ secrets.ACR_PASSWORD }}
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [setup, build]
+    if: needs.setup.outputs.should_deploy == 'true'
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to AKS
+        uses: ./.github/actions/helm-deploy
+        with:
+          environment: ${{ inputs.environment }}
+          application_name: ${{ inputs.application_name }}
+          application_type: ${{ inputs.application_type }}
+          helm_chart_path: ${{ inputs.helm_chart_path }}
+          image_tag: ${{ needs.setup.outputs.image_tag }}
+          helm_version: ${{ needs.setup.outputs.helm_version }}
+          registry: ${{ env.REGISTRY }}
+          aks_cluster_name: ${{ secrets.AKS_CLUSTER_NAME }}
+          aks_resource_group: ${{ secrets.AKS_RESOURCE_GROUP }}
+
+  create_release:
+    runs-on: ubuntu-latest
+    needs: [setup, deploy]
+    if: |
+      needs.setup.outputs.should_deploy == 'true' && 
+      inputs.environment == 'production' && 
+      (startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/tags/'))
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create GitHub Release
+        uses: ./.github/actions/create-release
+        with:
+          version: ${{ needs.setup.outputs.version }}
+          application_name: ${{ inputs.application_name }}

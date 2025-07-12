@@ -1,0 +1,127 @@
+name: 'Docker Build and Push'
+description: 'Builds and pushes Docker images with caching and multi-arch support'
+
+inputs:
+  application_name:
+    description: 'Application name'
+    required: true
+  application_type:
+    description: 'Application type (java-springboot, nodejs)'
+    required: true
+  build_context:
+    description: 'Build context path'
+    required: true
+  dockerfile_path:
+    description: 'Path to Dockerfile'
+    required: true
+  image_tag:
+    description: 'Image tag'
+    required: true
+  registry:
+    description: 'Container registry'
+    required: true
+  registry_username:
+    description: 'Registry username'
+    required: true
+  registry_password:
+    description: 'Registry password'
+    required: true
+
+outputs:
+  image_digest:
+    description: 'Image digest'
+    value: ${{ steps.build.outputs.digest }}
+  image_url:
+    description: 'Full image URL'
+    value: ${{ steps.build.outputs.image_url }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      with:
+        platforms: linux/amd64,linux/arm64
+
+    - name: Login to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ inputs.registry }}
+        username: ${{ inputs.registry_username }}
+        password: ${{ inputs.registry_password }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ inputs.registry }}/${{ inputs.application_name }}
+        tags: |
+          type=raw,value=${{ inputs.image_tag }}
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Set up build cache
+      id: cache
+      run: |
+        CACHE_FROM=""
+        CACHE_TO=""
+        
+        # Configure cache based on application type
+        case "${{ inputs.application_type }}" in
+          "java-springboot")
+            CACHE_FROM="type=gha,scope=java-${{ inputs.application_name }}"
+            CACHE_TO="type=gha,mode=max,scope=java-${{ inputs.application_name }}"
+            ;;
+          "nodejs")
+            CACHE_FROM="type=gha,scope=nodejs-${{ inputs.application_name }}"
+            CACHE_TO="type=gha,mode=max,scope=nodejs-${{ inputs.application_name }}"
+            ;;
+          *)
+            CACHE_FROM="type=gha,scope=default-${{ inputs.application_name }}"
+            CACHE_TO="type=gha,mode=max,scope=default-${{ inputs.application_name }}"
+            ;;
+        esac
+        
+        echo "cache_from=${CACHE_FROM}" >> $GITHUB_OUTPUT
+        echo "cache_to=${CACHE_TO}" >> $GITHUB_OUTPUT
+      shell: bash
+
+    - name: Build and push Docker image
+      id: build
+      uses: docker/build-push-action@v5
+      with:
+        context: ${{ inputs.build_context }}
+        file: ${{ inputs.dockerfile_path }}
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: ${{ steps.cache.outputs.cache_from }}
+        cache-to: ${{ steps.cache.outputs.cache_to }}
+        build-args: |
+          APPLICATION_NAME=${{ inputs.application_name }}
+          APPLICATION_TYPE=${{ inputs.application_type }}
+          BUILD_VERSION=${{ inputs.image_tag }}
+          BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+          BUILD_REVISION=${{ github.sha }}
+
+    - name: Set outputs
+      id: outputs
+      run: |
+        IMAGE_URL="${{ inputs.registry }}/${{ inputs.application_name }}:${{ inputs.image_tag }}"
+        echo "image_url=${IMAGE_URL}" >> $GITHUB_OUTPUT
+        echo "Built and pushed image: ${IMAGE_URL}"
+      shell: bash
+
+    - name: Generate SBOM
+      uses: anchore/sbom-action@v0
+      with:
+        image: ${{ steps.outputs.outputs.image_url }}
+        format: spdx-json
+        output-file: "${{ inputs.application_name }}-sbom.spdx.json"
+
+    - name: Upload SBOM
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.application_name }}-sbom
+        path: "${{ inputs.application_name }}-sbom.spdx.json"
+        retention-days: 30

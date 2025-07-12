@@ -1,0 +1,102 @@
+name: Deploy Node.js Application
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'release/**'
+    paths:
+      - 'apps/nodejs-app/**'
+      - 'helm/nodejs-app/**'
+      - '.github/workflows/deploy-nodejs-app.yml'
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'apps/nodejs-app/**'
+      - 'helm/nodejs-app/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - production
+      force_deploy:
+        description: 'Force deployment even if no changes'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  # Development environment - automatic on develop branch
+  deploy-dev:
+    if: |
+      github.ref == 'refs/heads/develop' || 
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev')
+    uses: ./.github/workflows/shared-deploy.yml
+    with:
+      environment: dev
+      application_name: nodejs-app
+      application_type: nodejs
+      build_context: apps/nodejs-app
+      dockerfile_path: apps/nodejs-app/Dockerfile
+      helm_chart_path: helm/nodejs-app
+      force_deploy: ${{ github.event.inputs.force_deploy == 'true' }}
+    secrets:
+      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+      ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+      ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+      ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+      AKS_CLUSTER_NAME: ${{ secrets.AKS_CLUSTER_NAME_DEV }}
+      AKS_RESOURCE_GROUP: ${{ secrets.AKS_RESOURCE_GROUP_DEV }}
+
+  # Staging environment - automatic on main branch PR merge
+  deploy-staging:
+    if: |
+      github.ref == 'refs/heads/main' || 
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+    uses: ./.github/workflows/shared-deploy.yml
+    with:
+      environment: staging
+      application_name: nodejs-app
+      application_type: nodejs
+      build_context: apps/nodejs-app
+      dockerfile_path: apps/nodejs-app/Dockerfile
+      helm_chart_path: helm/nodejs-app
+      force_deploy: ${{ github.event.inputs.force_deploy == 'true' }}
+    secrets:
+      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+      ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+      ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+      ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+      AKS_CLUSTER_NAME: ${{ secrets.AKS_CLUSTER_NAME_STAGING }}
+      AKS_RESOURCE_GROUP: ${{ secrets.AKS_RESOURCE_GROUP_STAGING }}
+
+  # Production environment - release branches and manual trigger
+  deploy-production:
+    if: |
+      startsWith(github.ref, 'refs/heads/release/') ||
+      startsWith(github.ref, 'refs/tags/') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production')
+    uses: ./.github/workflows/shared-deploy.yml
+    with:
+      environment: production
+      application_name: nodejs-app
+      application_type: nodejs
+      build_context: apps/nodejs-app
+      dockerfile_path: apps/nodejs-app/Dockerfile
+      helm_chart_path: helm/nodejs-app
+      force_deploy: ${{ github.event.inputs.force_deploy == 'true' }}
+    secrets:
+      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+      ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+      ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+      ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+      AKS_CLUSTER_NAME: ${{ secrets.AKS_CLUSTER_NAME_PROD }}
+      AKS_RESOURCE_GROUP: ${{ secrets.AKS_RESOURCE_GROUP_PROD }}
