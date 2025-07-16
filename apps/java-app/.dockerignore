@@ -1,0 +1,33 @@
+# Maven
+target/
+!target/*.jar
+!target/*.war
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+README.md
+*.md
+
+# Logs
+*.log
+
+# Test files
+src/test/
+
+# Maven wrapper JAR (we copy the script separately)
+.mvn/wrapper/maven-wrapper.jar
