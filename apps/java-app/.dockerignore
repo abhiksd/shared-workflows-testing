@@ -1,7 +1,14 @@
-# Maven
+# Source code (not needed as JAR is pre-built)
+src/
+pom.xml
+mvnw
+mvnw.cmd
+.mvn/
+
+# Maven build directory (except for JARs)
 target/
 !target/*.jar
-!target/*.war
+!*.jar
 
 # IDE files
 .idea/
@@ -19,15 +26,35 @@ Thumbs.db
 .git/
 .gitignore
 
-# Documentation
+# Documentation and config files
 README.md
 *.md
+.gitattributes
 
-# Logs
+# Logs and temporary files
 *.log
+*.tmp
+*.temp
 
-# Test files
+# Test files and reports
 src/test/
+**/test-results/
+**/coverage/
+dependency-check-report.html
 
-# Maven wrapper JAR (we copy the script separately)
-.mvn/wrapper/maven-wrapper.jar
+# Backup files
+*.bak
+*.backup
+
+# Node modules (if any)
+node_modules/
+
+# Docker related files (avoid recursive copy)
+Dockerfile*
+.dockerignore
+
+# Security and build artifacts we don't need in container
+*.pem
+*.key
+*.crt
+*.p12

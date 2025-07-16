@@ -85,6 +85,27 @@ runs:
         echo "cache_to=${CACHE_TO}" >> $GITHUB_OUTPUT
       shell: bash
 
+    - name: Prepare build context for Java applications
+      if: inputs.application_type == 'java-springboot'
+      run: |
+        echo "Preparing Java application build context..."
+        cd "${{ inputs.build_context }}"
+        
+        # List available JAR files
+        echo "Available JAR files in build context:"
+        find . -name "*.jar" -type f 2>/dev/null || echo "No JAR files found yet"
+        
+        # Ensure we have a JAR file for Docker build
+        JAR_COUNT=$(find . -name "*.jar" -not -name "*-sources.jar" -not -name "*-javadoc.jar" -type f 2>/dev/null | wc -l)
+        if [ "$JAR_COUNT" -eq 0 ]; then
+          echo "Warning: No JAR files found in build context. Make sure Maven build artifacts were downloaded correctly."
+          ls -la
+        else
+          echo "Found $JAR_COUNT JAR file(s) for Docker build"
+          find . -name "*.jar" -not -name "*-sources.jar" -not -name "*-javadoc.jar" -type f -exec ls -la {} \;
+        fi
+      shell: bash
+
     - name: Build and push Docker image
       id: build
       uses: docker/build-push-action@v5

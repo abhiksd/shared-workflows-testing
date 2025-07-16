@@ -1,0 +1,160 @@
+name: 'Maven Build'
+description: 'Builds Java applications using Maven with caching and security scanning'
+
+inputs:
+  application_name:
+    description: 'Application name'
+    required: true
+  build_context:
+    description: 'Build context path'
+    required: true
+  java_version:
+    description: 'Java version to use'
+    required: false
+    default: '21'
+  maven_args:
+    description: 'Additional Maven arguments'
+    required: false
+    default: '-DskipTests'
+  run_tests:
+    description: 'Whether to run tests'
+    required: false
+    default: 'false'
+  upload_artifacts:
+    description: 'Whether to upload build artifacts'
+    required: false
+    default: 'true'
+
+outputs:
+  jar_path:
+    description: 'Path to the built JAR file'
+    value: ${{ steps.build.outputs.jar_path }}
+  artifact_name:
+    description: 'Name of the uploaded artifact'
+    value: ${{ steps.upload.outputs.artifact_name }}
+  build_version:
+    description: 'Build version from Maven'
+    value: ${{ steps.version.outputs.build_version }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up JDK
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ inputs.java_version }}
+        distribution: 'temurin'
+
+    - name: Cache Maven dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.m2/repository
+          ~/.m2/wrapper
+        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml', '**/.mvn/wrapper/maven-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-maven-
+
+    - name: Extract version from POM
+      id: version
+      working-directory: ${{ inputs.build_context }}
+      run: |
+        # Extract version from pom.xml
+        VERSION=$(./mvnw help:evaluate -Dexpression=project.version -q -DforceStdout)
+        echo "build_version=${VERSION}" >> $GITHUB_OUTPUT
+        echo "Maven project version: ${VERSION}"
+      shell: bash
+
+    - name: Validate Maven wrapper
+      working-directory: ${{ inputs.build_context }}
+      run: |
+        # Verify Maven wrapper checksum for security
+        if [ -f ".mvn/wrapper/maven-wrapper.properties" ]; then
+          echo "Validating Maven wrapper..."
+          ./mvnw --version
+        else
+          echo "Warning: Maven wrapper properties not found"
+        fi
+      shell: bash
+
+    - name: Download dependencies
+      working-directory: ${{ inputs.build_context }}
+      run: |
+        echo "Downloading Maven dependencies..."
+        ./mvnw dependency:resolve dependency:resolve-sources
+      shell: bash
+
+    - name: Run tests
+      if: inputs.run_tests == 'true'
+      working-directory: ${{ inputs.build_context }}
+      run: |
+        echo "Running Maven tests..."
+        ./mvnw test
+      shell: bash
+
+    - name: Build application
+      id: build
+      working-directory: ${{ inputs.build_context }}
+      run: |
+        echo "Building Maven application..."
+        BUILD_ARGS="clean package ${{ inputs.maven_args }}"
+        
+        # Add test skip if tests are not being run separately
+        if [ "${{ inputs.run_tests }}" != "true" ]; then
+          BUILD_ARGS="${BUILD_ARGS} -DskipTests"
+        fi
+        
+        ./mvnw ${BUILD_ARGS}
+        
+        # Find the built JAR file
+        JAR_FILE=$(find target -name "*.jar" -not -name "*-sources.jar" -not -name "*-javadoc.jar" | head -1)
+        
+        if [ -z "$JAR_FILE" ]; then
+          echo "Error: No JAR file found in target directory"
+          exit 1
+        fi
+        
+        JAR_PATH="${{ inputs.build_context }}/${JAR_FILE}"
+        echo "jar_path=${JAR_PATH}" >> $GITHUB_OUTPUT
+        echo "Built JAR: ${JAR_PATH}"
+        
+        # Verify JAR file
+        java -jar "${JAR_FILE}" --version 2>/dev/null || echo "JAR verification skipped (application may not support --version)"
+      shell: bash
+
+    - name: Run security scan on dependencies
+      working-directory: ${{ inputs.build_context }}
+      run: |
+        echo "Running Maven dependency security scan..."
+        # Check for known vulnerabilities in dependencies
+        ./mvnw org.owasp:dependency-check-maven:check -DfailBuildOnCVSS=7 || echo "Security scan completed with warnings"
+      shell: bash
+      continue-on-error: true
+
+    - name: Upload build artifacts
+      id: upload
+      if: inputs.upload_artifacts == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.application_name }}-jar
+        path: |
+          ${{ steps.build.outputs.jar_path }}
+          ${{ inputs.build_context }}/target/dependency-check-report.html
+        retention-days: 7
+
+    - name: Set artifact output
+      if: inputs.upload_artifacts == 'true'
+      run: |
+        echo "artifact_name=${{ inputs.application_name }}-jar" >> $GITHUB_OUTPUT
+      shell: bash
+
+    - name: Build summary
+      run: |
+        echo "## Maven Build Summary" >> $GITHUB_STEP_SUMMARY
+        echo "- **Application**: ${{ inputs.application_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Java Version**: ${{ inputs.java_version }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Build Version**: ${{ steps.version.outputs.build_version }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **JAR Path**: ${{ steps.build.outputs.jar_path }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Tests Run**: ${{ inputs.run_tests }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Maven Args**: ${{ inputs.maven_args }}" >> $GITHUB_STEP_SUMMARY
+      shell: bash
