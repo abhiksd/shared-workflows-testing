@@ -1,82 +1,91 @@
 # Development Environment Values for Java Spring Boot Application
-shared-app:
-  global:
-    environment: dev
 
-  # Lower resource requirements for dev
-  replicaCount: 1
+global:
+  environment: dev
 
-  image:
-    pullPolicy: Always  # Always pull latest for dev
+# Lower resource requirements for dev
+replicaCount: 1
 
-  # Environment variables
-  env:
-    - name: ENVIRONMENT
-      value: "dev"
-    - name: APPLICATION_NAME
-      value: "java-app"
-    - name: SPRING_PROFILES_ACTIVE
-      value: "dev"
-    - name: SERVER_PORT
-      value: "8080"
-    - name: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
-      value: "*"  # Expose all actuator endpoints in dev
+image:
+  pullPolicy: Always  # Always pull latest for dev
 
-  # ConfigMap for dev
-  configMap:
-    data:
-      LOG_LEVEL: "debug"
-      DEBUG: "true"
-      JAVA_OPTS: "-Xms256m -Xmx512m -XX:+UseG1GC"
+# Environment variables
+env:
+  - name: ENVIRONMENT
+    value: "dev"
+  - name: APPLICATION_NAME
+    value: "java-app"
+  - name: SPRING_PROFILES_ACTIVE
+    value: "dev"
+  - name: SERVER_PORT
+    value: "8080"
+  - name: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
+    value: "*"  # Expose all actuator endpoints in dev
 
-  # Resource limits for dev
-  resources:
-    limits:
-      cpu: 500m
-      memory: 1Gi
-    requests:
-      cpu: 100m
-      memory: 256Mi
+# ConfigMap for dev
+configMap:
+  enabled: true
+  data:
+    LOG_LEVEL: "debug"
+    DEBUG: "true"
+    JAVA_OPTS: "-Xms256m -Xmx512m -XX:+UseG1GC"
 
-  # Relaxed health checks for dev
-  livenessProbe:
-    initialDelaySeconds: 30
-    periodSeconds: 15
-    timeoutSeconds: 10
-    failureThreshold: 5
+# Resource limits for dev
+resources:
+  limits:
+    cpu: 500m
+    memory: 1Gi
+  requests:
+    cpu: 100m
+    memory: 256Mi
 
-  readinessProbe:
-    initialDelaySeconds: 15
-    periodSeconds: 10
-    timeoutSeconds: 5
-    failureThreshold: 5
+# Relaxed health checks for dev
+livenessProbe:
+  enabled: true
+  httpGet:
+    path: /actuator/health
+    port: 8080
+  initialDelaySeconds: 30
+  periodSeconds: 15
+  timeoutSeconds: 10
+  failureThreshold: 5
 
-  # Ingress for dev
-  ingress:
-    enabled: true
-    className: "nginx"
-    pathPrefix: "java-app"
-    proxyBodySize: "512m"
-    annotations: {}
-    hosts:
-      - host: java-app-dev.local
-        paths:
-          - path: /
-            pathType: Prefix
-    tls: []
+readinessProbe:
+  enabled: true
+  httpGet:
+    path: /actuator/health/readiness
+    port: 8080
+  initialDelaySeconds: 15
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 5
 
-  # No autoscaling in dev
-  autoscaling:
-    enabled: false
+# Ingress for dev
+ingress:
+  enabled: true
+  className: "nginx"
+  pathPrefix: "java-app"
+  proxyBodySize: "512m"
+  annotations: {}
+  hosts:
+    - host: java-app-dev.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
 
-  # Monitoring enabled for testing
-  monitoring:
-    enabled: true
+# No autoscaling in dev
+autoscaling:
+  enabled: false
 
-  # No pod disruption budget in dev
-  podDisruptionBudget:
-    enabled: false
+# Monitoring enabled for testing
+monitoring:
+  enabled: true
 
-  # Network policy disabled in dev for easier debugging
-  networkPolicy:
-    enabled: false
+# No pod disruption budget in dev
+podDisruptionBudget:
+  enabled: false
+
+# Network policy disabled in dev for easier debugging
+networkPolicy:
+  enabled: false

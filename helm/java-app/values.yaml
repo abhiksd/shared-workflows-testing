@@ -1,91 +1,156 @@
-# Base values for Java Spring Boot Application
-# This file contains default values that can be overridden by environment-specific values
+# Default values for java-app.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
 
-shared-app:
-  # Global configuration
-  global:
-    environment: dev
-    applicationName: java-app
-    applicationType: java-springboot
+# Global configuration
+global:
+  environment: dev
+  applicationName: java-app
+  applicationType: java-springboot
 
-  # Replica count - will be overridden per environment
-  replicaCount: 1
+# Replica count
+replicaCount: 1
 
-  # Image configuration
-  image:
-    repository: myregistry.azurecr.io/java-app
-    pullPolicy: IfNotPresent
-    tag: "latest"
+# Image configuration
+image:
+  repository: myregistry.azurecr.io/java-app
+  pullPolicy: IfNotPresent
+  tag: "latest"
 
-  # Service configuration
-  service:
-    type: ClusterIP
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Service account configuration
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Pod annotations
+podAnnotations: {}
+
+# Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 2000
+
+# Security context for the container
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 8080
+  annotations: {}
+
+# Ingress configuration
+ingress:
+  enabled: false
+  className: "nginx"
+  pathPrefix: "java-app"
+  proxyBodySize: "1024m"
+  annotations: {}
+  hosts:
+    - host: java-app.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# Resource limits and requests
+resources:
+  limits:
+    cpu: 1000m
+    memory: 2Gi
+  requests:
+    cpu: 500m
+    memory: 1Gi
+
+# Autoscaling configuration
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}
+
+# Environment variables
+env:
+  - name: ENVIRONMENT
+    value: "dev"
+  - name: APPLICATION_NAME
+    value: "java-app"
+
+# ConfigMap configuration
+configMap:
+  enabled: true
+  data:
+    LOG_LEVEL: "info"
+    DEBUG: "false"
+
+# Liveness probe configuration (Java Spring Boot specific)
+livenessProbe:
+  enabled: true
+  httpGet:
+    path: /actuator/health
     port: 8080
-    targetPort: 8080
+  initialDelaySeconds: 60
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
 
-  # Environment variables
-  env:
-    - name: ENVIRONMENT
-      value: "dev"
-    - name: APPLICATION_NAME
-      value: "java-app"
-    - name: SPRING_PROFILES_ACTIVE
-      value: "dev"
-    - name: SERVER_PORT
-      value: "8080"
+# Readiness probe configuration (Java Spring Boot specific)
+readinessProbe:
+  enabled: true
+  httpGet:
+    path: /actuator/health/readiness
+    port: 8080
+  initialDelaySeconds: 30
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
 
-  # ConfigMap configuration
-  configMap:
-    enabled: true
-    data:
-      LOG_LEVEL: "info"
-      DEBUG: "false"
-      JAVA_OPTS: "-Xms512m -Xmx1g"
+# Volume mounts
+volumeMounts: []
 
-  # Health checks for Spring Boot
-  livenessProbe:
-    enabled: true
-    httpGet:
-      path: /actuator/health/liveness
-      port: 8080
-    initialDelaySeconds: 60
-    periodSeconds: 10
-    timeoutSeconds: 5
-    failureThreshold: 3
+# Volumes
+volumes: []
 
-  readinessProbe:
-    enabled: true
-    httpGet:
-      path: /actuator/health/readiness
-      port: 8080
-    initialDelaySeconds: 30
-    periodSeconds: 5
-    timeoutSeconds: 3
-    failureThreshold: 3
+# Pod disruption budget
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
 
-  # Resource limits
-  resources:
-    limits:
-      cpu: 1000m
-      memory: 2Gi
-    requests:
-      cpu: 500m
-      memory: 1Gi
+# Network policy
+networkPolicy:
+  enabled: false
 
-  # Security context
-  securityContext:
-    allowPrivilegeEscalation: false
-    capabilities:
-      drop:
-      - ALL
-    readOnlyRootFilesystem: true
-    runAsNonRoot: true
-    runAsUser: 1000
+# Monitoring and observability
+monitoring:
+  enabled: false
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/actuator/prometheus"
 
-  # Monitoring
-  monitoring:
-    enabled: true
-    annotations:
-      prometheus.io/scrape: "true"
-      prometheus.io/port: "8080"
-      prometheus.io/path: "/actuator/prometheus"
+# Tests
+tests:
+  enabled: false

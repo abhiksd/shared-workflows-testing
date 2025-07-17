@@ -1,88 +1,89 @@
 # Development Environment Values for Node.js Application
-shared-app:
-  global:
-    environment: dev
 
-  # Single replica for dev
-  replicaCount: 1
+global:
+  environment: dev
 
-  image:
-    pullPolicy: Always  # Always pull latest for dev
+# Lower resource requirements for dev
+replicaCount: 1
 
-  # Environment variables
-  env:
-    - name: ENVIRONMENT
-      value: "dev"
-    - name: APPLICATION_NAME
-      value: "nodejs-app"
-    - name: NODE_ENV
-      value: "development"
-    - name: PORT
-      value: "3000"
-    - name: DEBUG
-      value: "*"  # Enable all debug logs in dev
+image:
+  pullPolicy: Always  # Always pull latest for dev
 
-  # ConfigMap for dev
-  configMap:
-    data:
-      LOG_LEVEL: "debug"
-      DEBUG: "*"
-      NODE_OPTIONS: "--max-old-space-size=256 --inspect=0.0.0.0:9229"
+# Environment variables
+env:
+  - name: ENVIRONMENT
+    value: "dev"
+  - name: APPLICATION_NAME
+    value: "nodejs-app"
+  - name: NODE_ENV
+    value: "development"
+  - name: PORT
+    value: "3000"
 
-  # Resource limits for dev
-  resources:
-    limits:
-      cpu: 250m
-      memory: 512Mi
-    requests:
-      cpu: 50m
-      memory: 128Mi
+# ConfigMap for dev
+configMap:
+  enabled: true
+  data:
+    LOG_LEVEL: "debug"
+    DEBUG: "nodejs-app:*"
+    NODE_OPTIONS: "--max-old-space-size=512"
 
-  # Relaxed health checks for dev
-  livenessProbe:
-    initialDelaySeconds: 15
-    periodSeconds: 15
-    timeoutSeconds: 10
-    failureThreshold: 5
+# Resource limits for dev
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
 
-  readinessProbe:
-    initialDelaySeconds: 10
-    periodSeconds: 10
-    timeoutSeconds: 5
-    failureThreshold: 5
+# Relaxed health checks for dev
+livenessProbe:
+  enabled: true
+  httpGet:
+    path: /health
+    port: 3000
+  initialDelaySeconds: 15
+  periodSeconds: 15
+  timeoutSeconds: 10
+  failureThreshold: 5
 
-  # Ingress for dev
-  ingress:
-    enabled: true
-    className: "nginx"
-    pathPrefix: "nodejs-app"
-    proxyBodySize: "512m"
-    annotations: {}
-    hosts:
-      - host: nodejs-app-dev.local
-        paths:
-          - path: /
-            pathType: Prefix
-    tls: []
+readinessProbe:
+  enabled: true
+  httpGet:
+    path: /ready
+    port: 3000
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 5
 
-  # No autoscaling in dev
-  autoscaling:
-    enabled: false
+# Ingress for dev
+ingress:
+  enabled: true
+  className: "nginx"
+  pathPrefix: "nodejs-app"
+  proxyBodySize: "512m"
+  annotations: {}
+  hosts:
+    - host: nodejs-app-dev.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
 
-  # Monitoring enabled for testing
-  monitoring:
-    enabled: true
+# No autoscaling in dev
+autoscaling:
+  enabled: false
 
-  # No pod disruption budget in dev
-  podDisruptionBudget:
-    enabled: false
+# Monitoring enabled for testing
+monitoring:
+  enabled: true
 
-  # Network policy disabled in dev for easier debugging
-  networkPolicy:
-    enabled: false
+# No pod disruption budget in dev
+podDisruptionBudget:
+  enabled: false
 
-  # Service for debugging
-  service:
-    type: NodePort
-    annotations:
-      dev.kubernetes.io/debug: "true"
+# Network policy disabled in dev for easier debugging
+networkPolicy:
+  enabled: false

@@ -13,8 +13,3 @@ keywords:
 maintainers:
   - name: DevOps Team
     email: devops@company.com
-
-dependencies:
-  - name: shared-app
-    version: "0.1.0"
-    repository: "file://../shared-app"

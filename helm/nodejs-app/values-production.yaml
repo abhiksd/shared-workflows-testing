@@ -1,195 +1,156 @@
 # Production Environment Values for Node.js Application
-shared-app:
-  global:
-    environment: production
 
-  # High availability with multiple replicas
-  replicaCount: 3
+global:
+  environment: production
 
-  image:
-    pullPolicy: IfNotPresent
+# High availability with multiple replicas
+replicaCount: 3
 
-  # Environment variables
-  env:
-    - name: ENVIRONMENT
-      value: "production"
-    - name: APPLICATION_NAME
-      value: "nodejs-app"
-    - name: NODE_ENV
-      value: "production"
-    - name: PORT
-      value: "3000"
+image:
+  pullPolicy: IfNotPresent
 
-  # ConfigMap for production
-  configMap:
-    data:
-      LOG_LEVEL: "warn"
-      DEBUG: ""  # No debug logs in production
-      NODE_OPTIONS: "--max-old-space-size=1024 --enable-source-maps"
+# Environment variables
+env:
+  - name: ENVIRONMENT
+    value: "production"
+  - name: APPLICATION_NAME
+    value: "nodejs-app"
+  - name: NODE_ENV
+    value: "production"
+  - name: PORT
+    value: "3000"
 
-  # Production resource limits
-  resources:
-    limits:
-      cpu: 1000m
-      memory: 2Gi
-    requests:
-      cpu: 500m
-      memory: 1Gi
+# ConfigMap for production
+configMap:
+  enabled: true
+  data:
+    LOG_LEVEL: "warn"
+    DEBUG: "false"
+    NODE_OPTIONS: "--max-old-space-size=2048"
 
-  # Strict health checks for production
-  livenessProbe:
-    initialDelaySeconds: 60
-    periodSeconds: 10
-    timeoutSeconds: 5
-    failureThreshold: 3
+# Production resource limits
+resources:
+  limits:
+    cpu: 1000m
+    memory: 2Gi
+  requests:
+    cpu: 500m
+    memory: 1Gi
 
-  readinessProbe:
-    initialDelaySeconds: 30
-    periodSeconds: 5
-    timeoutSeconds: 3
-    failureThreshold: 3
+# Strict health checks for production
+livenessProbe:
+  enabled: true
+  httpGet:
+    path: /health
+    port: 3000
+  initialDelaySeconds: 60
+  periodSeconds: 30
+  timeoutSeconds: 10
+  failureThreshold: 3
 
-  # Production ingress configuration
-  ingress:
-    enabled: true
-    className: "nginx"
-    pathPrefix: "nodejs-app"
-    proxyBodySize: "1024m"
-    annotations:
-      nginx.ingress.kubernetes.io/rate-limit: "200"
-      nginx.ingress.kubernetes.io/rate-limit-window: "1m"
-      nginx.ingress.kubernetes.io/configuration-snippet: |
-        add_header X-Frame-Options "SAMEORIGIN" always;
-        add_header X-Content-Type-Options "nosniff" always;
-        add_header X-XSS-Protection "1; mode=block" always;
-        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-      nginx.ingress.kubernetes.io/server-snippet: |
-        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-          expires 1y;
-          add_header Cache-Control "public, immutable";
-        }
-        location ~* \.(json|xml)$ {
-          expires 1h;
-          add_header Cache-Control "public";
-        }
-    hosts:
-      - host: nodejs-app.company.com
-        paths:
-          - path: /
-            pathType: Prefix
-    tls: []
+readinessProbe:
+  enabled: true
+  httpGet:
+    path: /ready
+    port: 3000
+  initialDelaySeconds: 30
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
 
-  # Production autoscaling
-  autoscaling:
-    enabled: true
-    minReplicas: 3
-    maxReplicas: 10
-    targetCPUUtilizationPercentage: 60
-    targetMemoryUtilizationPercentage: 70
-    behavior:
-      scaleDown:
-        stabilizationWindowSeconds: 300
-        policies:
-        - type: Percent
-          value: 50
-          periodSeconds: 60
-      scaleUp:
-        stabilizationWindowSeconds: 60
-        policies:
-        - type: Percent
-          value: 100
-          periodSeconds: 60
+# Production ingress configuration
+ingress:
+  enabled: true
+  className: "nginx"
+  pathPrefix: "nodejs-app"
+  proxyBodySize: "1024m"
+  annotations:
+    nginx.ingress.kubernetes.io/rate-limit: "200"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      add_header X-Frame-Options "SAMEORIGIN" always;
+      add_header X-Content-Type-Options "nosniff" always;
+      add_header X-XSS-Protection "1; mode=block" always;
+      add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    nginx.ingress.kubernetes.io/server-snippet: |
+      location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+      }
+      location ~* \.(json|xml)$ {
+        expires 1h;
+        add_header Cache-Control "public";
+      }
+  hosts:
+    - host: nodejs-app.company.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
 
-  # Full monitoring suite
-  monitoring:
-    enabled: true
+# Production autoscaling
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
 
-  # Pod disruption budget for high availability
-  podDisruptionBudget:
-    enabled: true
-    minAvailable: 2
-
-  # Network policy for security
-  networkPolicy:
-    enabled: true
-
-  # Pod anti-affinity for availability
-  affinity:
-    podAntiAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        - labelSelector:
-            matchExpressions:
-              - key: app.kubernetes.io/name
-                operator: In
-                values:
-                  - nodejs-app
-          topologyKey: kubernetes.io/hostname
-    nodeAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 100
-          preference:
-            matchExpressions:
-              - key: node-role.kubernetes.io/worker
-                operator: In
-                values:
-                  - "true"
-
-  # Production security context
-  podSecurityContext:
-    runAsNonRoot: true
-    runAsUser: 1001
-    fsGroup: 2000
-    seccompProfile:
-      type: RuntimeDefault
-
-  securityContext:
-    allowPrivilegeEscalation: false
-    capabilities:
-      drop:
-      - ALL
-      add:
-      - NET_BIND_SERVICE
-    readOnlyRootFilesystem: true
-    runAsNonRoot: true
-    runAsUser: 1001
-
-  # Node selector for production nodes
-  nodeSelector:
-    node-role.kubernetes.io/worker: "true"
-
-  # Tolerations for production workloads
-  tolerations:
-    - key: "production-workload"
-      operator: "Equal"
-      value: "true"
-      effect: "NoSchedule"
-
-  # Additional pod annotations for production
-  podAnnotations:
-    cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+# Monitoring enabled
+monitoring:
+  enabled: true
+  annotations:
     prometheus.io/scrape: "true"
     prometheus.io/port: "3000"
     prometheus.io/path: "/metrics"
 
-  # Service annotations for production
-  service:
-    annotations:
-      service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+# Pod disruption budget for high availability
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
 
-  # Volume mounts for temporary files
-  volumeMounts:
-    - name: tmp
-      mountPath: /tmp
-    - name: var-log
-      mountPath: /var/log
+# Network policies enabled for security
+networkPolicy:
+  enabled: true
 
-  # Volumes for temporary files
-  volumes:
-    - name: tmp
-      emptyDir: {}
-    - name: var-log
-      emptyDir: {}
+# Anti-affinity for better distribution across nodes
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+            - key: app.kubernetes.io/name
+              operator: In
+              values:
+                - nodejs-app
+        topologyKey: kubernetes.io/hostname
 
-  # Tests enabled for production validation
-  tests:
-    enabled: true
+# Production security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 2000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# Service account
+serviceAccount:
+  create: true
+  annotations:
+    # Add any production-specific annotations
+
+# Tolerations for dedicated nodes if needed
+tolerations: []
+
+# Node selector for production nodes
+nodeSelector:
+  environment: production

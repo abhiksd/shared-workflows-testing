@@ -1,108 +1,117 @@
 # Staging Environment Values for Node.js Application
-shared-app:
-  global:
-    environment: staging
 
-  # Multiple replicas for load balancing testing
-  replicaCount: 2
+global:
+  environment: staging
 
-  image:
-    pullPolicy: IfNotPresent
+# Multiple replicas for testing load balancing
+replicaCount: 2
 
-  # Environment variables
-  env:
-    - name: ENVIRONMENT
-      value: "staging"
-    - name: APPLICATION_NAME
-      value: "nodejs-app"
-    - name: NODE_ENV
-      value: "staging"
-    - name: PORT
-      value: "3000"
+image:
+  pullPolicy: IfNotPresent
 
-  # ConfigMap for staging
-  configMap:
-    data:
-      LOG_LEVEL: "info"
-      DEBUG: "nodejs-app:*"
-      NODE_OPTIONS: "--max-old-space-size=512"
+# Environment variables
+env:
+  - name: ENVIRONMENT
+    value: "staging"
+  - name: APPLICATION_NAME
+    value: "nodejs-app"
+  - name: NODE_ENV
+    value: "staging"
+  - name: PORT
+    value: "3000"
 
-  # Production-like resource limits
-  resources:
-    limits:
-      cpu: 500m
-      memory: 1Gi
-    requests:
-      cpu: 250m
-      memory: 512Mi
+# ConfigMap for staging
+configMap:
+  enabled: true
+  data:
+    LOG_LEVEL: "info"
+    DEBUG: "false"
+    NODE_OPTIONS: "--max-old-space-size=1024"
 
-  # Tighter health checks
-  livenessProbe:
-    initialDelaySeconds: 30
-    periodSeconds: 10
-    timeoutSeconds: 5
-    failureThreshold: 3
+# Production-like resource limits
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
 
-  readinessProbe:
-    initialDelaySeconds: 15
-    periodSeconds: 5
-    timeoutSeconds: 3
-    failureThreshold: 3
+# Tighter health checks
+livenessProbe:
+  enabled: true
+  httpGet:
+    path: /health
+    port: 3000
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
 
-  # Ingress configuration
-  ingress:
-    enabled: true
-    className: "nginx"
-    pathPrefix: "nodejs-app"
-    proxyBodySize: "1024m"
-    annotations:
-      nginx.ingress.kubernetes.io/rate-limit: "100"
-    hosts:
-      - host: nodejs-app-staging.company.com
-        paths:
-          - path: /
-            pathType: Prefix
-    tls: []
+readinessProbe:
+  enabled: true
+  httpGet:
+    path: /ready
+    port: 3000
+  initialDelaySeconds: 15
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
 
-  # Enable autoscaling for staging
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 5
-    targetCPUUtilizationPercentage: 70
-    targetMemoryUtilizationPercentage: 80
+# Ingress configuration
+ingress:
+  enabled: true
+  className: "nginx"
+  pathPrefix: "nodejs-app"
+  proxyBodySize: "1024m"
+  annotations:
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+  hosts:
+    - host: nodejs-app-staging.company.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
 
-  # Monitoring enabled
-  monitoring:
-    enabled: true
+# Enable autoscaling for staging
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
 
-  # Pod disruption budget for availability testing
-  podDisruptionBudget:
-    enabled: true
-    minAvailable: 1
+# Monitoring enabled
+monitoring:
+  enabled: true
 
-  # Network policy enabled for security testing
-  networkPolicy:
-    enabled: true
+# Pod disruption budget for availability testing
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
 
-  # Anti-affinity for better distribution
-  affinity:
-    podAntiAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 100
-          podAffinityTerm:
-            labelSelector:
-              matchExpressions:
-                - key: app.kubernetes.io/name
-                  operator: In
-                  values:
-                    - nodejs-app
-            topologyKey: kubernetes.io/hostname
+# Network policy enabled for security testing
+networkPolicy:
+  enabled: true
 
-  # Resource quotas and limits
-  podSecurityContext:
-    runAsNonRoot: true
-    runAsUser: 1001
-    fsGroup: 2000
-    seccompProfile:
-      type: RuntimeDefault
+# Anti-affinity for better distribution
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - nodejs-app
+          topologyKey: kubernetes.io/hostname
+
+# Resource quotas and limits
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 2000
+  seccompProfile:
+    type: RuntimeDefault
