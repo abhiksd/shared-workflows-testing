@@ -46,10 +46,55 @@ spec:
               containerPort: {{ .Values.service.port }}
               protocol: TCP
           env:
+            # Node.js Core Configuration
             - name: PORT
               value: "{{ .Values.service.port }}"
             - name: NODE_ENV
               value: "{{ .Values.global.environment }}"
+            - name: APP_NAME
+              value: {{ .Values.global.applicationName | quote }}
+            - name: APP_VERSION
+              value: {{ .Chart.AppVersion | quote }}
+            {{- if .Values.configMap.enabled }}
+            - name: CONFIG_PATH
+              value: "/etc/config"
+            {{- end }}
+            # Logging Configuration
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "nodejs-app.fullname" . }}-config
+                  key: LOG_LEVEL
+            {{- if .Values.configMap.data.DEBUG }}
+            - name: DEBUG
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "nodejs-app.fullname" . }}-config
+                  key: DEBUG
+            {{- end }}
+            # Performance Configuration
+            {{- if .Values.configMap.data.NODE_OPTIONS }}
+            - name: NODE_OPTIONS
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "nodejs-app.fullname" . }}-config
+                  key: NODE_OPTIONS
+            {{- end }}
+            # Azure Key Vault Secrets Path
+            {{- if .Values.azureKeyVault.enabled }}
+            - name: AZURE_KEYVAULT_SECRETS_PATH
+              value: {{ .Values.azureKeyVault.mountPath | default "/mnt/secrets-store" }}
+            - name: SECRETS_ENABLED
+              value: "true"
+            {{- end }}
+            # Health Check Configuration
+            - name: HEALTH_CHECK_PORT
+              value: "{{ .Values.service.port }}"
+            - name: HEALTH_CHECK_PATH
+              value: {{ .Values.livenessProbe.httpGet.path | quote }}
+            - name: READY_CHECK_PATH
+              value: {{ .Values.readinessProbe.httpGet.path | quote }}
+            # Additional Environment Variables
             {{- range .Values.env }}
             - name: {{ .name }}
               value: {{ .value | quote }}
@@ -86,6 +131,11 @@ spec:
               mountPath: {{ .Values.azureKeyVault.mountPath | default "/mnt/secrets-store" }}
               readOnly: true
             {{- end }}
+            {{- if .Values.configMap.enabled }}
+            - name: config-volume
+              mountPath: /etc/config
+              readOnly: true
+            {{- end }}
             {{- if .Values.volumeMounts }}
             {{- toYaml .Values.volumeMounts | nindent 12 }}
             {{- end }}
@@ -97,6 +147,12 @@ spec:
             readOnly: true
             volumeAttributes:
               secretProviderClass: {{ include "nodejs-app.fullname" . }}-keyvault
+        {{- end }}
+        {{- if .Values.configMap.enabled }}
+        - name: config-volume
+          configMap:
+            name: {{ include "nodejs-app.fullname" . }}-config
+            defaultMode: 0644
         {{- end }}
         {{- if .Values.volumes }}
         {{- toYaml .Values.volumes | nindent 8 }}

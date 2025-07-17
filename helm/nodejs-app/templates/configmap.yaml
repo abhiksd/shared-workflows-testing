@@ -14,7 +14,106 @@ data:
   environment: {{ .Values.global.environment | quote }}
   application.name: {{ .Values.global.applicationName | quote }}
   application.type: {{ .Values.global.applicationType | quote }}
-  # Node.js configuration
+  # Node.js Server Configuration
   PORT: {{ .Values.service.port | quote }}
   NODE_ENV: {{ .Values.global.environment | quote }}
+  APP_NAME: {{ .Values.global.applicationName | quote }}
+  APP_VERSION: {{ .Chart.AppVersion | quote }}
+  # Logging Configuration
+  {{- if eq .Values.global.environment "production" }}
+  LOG_LEVEL: "warn"
+  {{- else if eq .Values.global.environment "staging" }}
+  LOG_LEVEL: "info"
+  {{- else }}
+  LOG_LEVEL: "debug"
+  {{- end }}
+  # Health Check Configuration
+  HEALTH_CHECK_TIMEOUT: "5000"
+  HEALTH_CHECK_INTERVAL: "30000"
+  # Performance Configuration
+  {{- if eq .Values.global.environment "production" }}
+  NODE_OPTIONS: "--max-old-space-size=2048 --optimize-for-size"
+  {{- else if eq .Values.global.environment "staging" }}
+  NODE_OPTIONS: "--max-old-space-size=1024"
+  {{- else }}
+  NODE_OPTIONS: "--max-old-space-size=512 --inspect=0.0.0.0:9229"
+  {{- end }}
+  # Environment-specific configuration file
+  config.json: |
+    {
+      "app": {
+        "name": "{{ .Values.global.applicationName }}",
+        "version": "{{ .Chart.AppVersion }}",
+        "environment": "{{ .Values.global.environment }}",
+        "port": {{ .Values.service.port }}
+      },
+      "server": {
+        "port": {{ .Values.service.port }},
+        "host": "0.0.0.0",
+        "timeout": 30000,
+        "keepAliveTimeout": 5000
+      },
+      "logging": {
+        {{- if eq .Values.global.environment "production" }}
+        "level": "warn",
+        "format": "json",
+        "enableConsole": true,
+        "enableFile": false
+        {{- else if eq .Values.global.environment "staging" }}
+        "level": "info",
+        "format": "json",
+        "enableConsole": true,
+        "enableFile": false
+        {{- else }}
+        "level": "debug",
+        "format": "pretty",
+        "enableConsole": true,
+        "enableFile": false
+        {{- end }}
+      },
+      "health": {
+        "endpoint": "{{ .Values.livenessProbe.httpGet.path }}",
+        "readinessEndpoint": "{{ .Values.readinessProbe.httpGet.path }}",
+        "timeout": 5000
+      },
+      {{- if .Values.azureKeyVault.enabled }}
+      "secrets": {
+        "enabled": true,
+        "provider": "azure-keyvault",
+        "mountPath": "{{ .Values.azureKeyVault.mountPath | default "/mnt/secrets-store" }}",
+        "autoReload": false
+      },
+      {{- end }}
+      "monitoring": {
+        {{- if eq .Values.global.environment "production" }}
+        "metricsEnabled": true,
+        "healthCheckEnabled": true,
+        "performanceMonitoring": true
+        {{- else if eq .Values.global.environment "staging" }}
+        "metricsEnabled": true,
+        "healthCheckEnabled": true,
+        "performanceMonitoring": true
+        {{- else }}
+        "metricsEnabled": true,
+        "healthCheckEnabled": true,
+        "performanceMonitoring": false,
+        "debugMode": true
+        {{- end }}
+      }
+    }
+  # Environment-specific package.json scripts
+  npm-scripts.json: |
+    {
+      {{- if eq .Values.global.environment "production" }}
+      "start": "node server.js",
+      "healthcheck": "node healthcheck.js"
+      {{- else if eq .Values.global.environment "staging" }}
+      "start": "node server.js",
+      "healthcheck": "node healthcheck.js"
+      {{- else }}
+      "start": "node --inspect=0.0.0.0:9229 server.js",
+      "dev": "nodemon --inspect=0.0.0.0:9229 server.js",
+      "healthcheck": "node healthcheck.js"
+      {{- end }}
+    }
 {{- end }}

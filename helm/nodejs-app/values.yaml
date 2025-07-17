@@ -92,13 +92,21 @@ env:
     value: "dev"
   - name: APPLICATION_NAME
     value: "nodejs-app"
+  - name: PORT
+    value: "3000"
+  - name: NODE_ENV
+    value: "development"
+  - name: DEBUG_MODE
+    value: "true"
 
 # ConfigMap configuration
 configMap:
   enabled: true
   data:
-    LOG_LEVEL: "info"
-    DEBUG: "false"
+    LOG_LEVEL: "debug"
+    DEBUG: "true"
+    NODE_OPTIONS: "--max-old-space-size=512 --inspect=0.0.0.0:9229"
+    ENABLE_DEBUGGING: "true"
 
 # Liveness probe configuration (Node.js specific)
 livenessProbe:

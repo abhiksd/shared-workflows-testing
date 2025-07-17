@@ -19,6 +19,12 @@ env:
     value: "production"
   - name: PORT
     value: "3000"
+  - name: DEBUG_MODE
+    value: "false"
+  - name: PERFORMANCE_MONITORING
+    value: "true"
+  - name: SECURITY_MODE
+    value: "strict"
 
 # ConfigMap for production
 configMap:
@@ -26,7 +32,11 @@ configMap:
   data:
     LOG_LEVEL: "warn"
     DEBUG: "false"
-    NODE_OPTIONS: "--max-old-space-size=2048"
+    NODE_OPTIONS: "--max-old-space-size=2048 --optimize-for-size"
+    PERFORMANCE_MONITORING: "true"
+    METRICS_ENABLED: "true"
+    SECURITY_HEADERS: "true"
+    REQUEST_LOGGING: "false"
 
 # Production resource limits
 resources:

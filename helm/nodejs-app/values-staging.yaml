@@ -19,6 +19,10 @@ env:
     value: "staging"
   - name: PORT
     value: "3000"
+  - name: DEBUG_MODE
+    value: "false"
+  - name: PERFORMANCE_MONITORING
+    value: "true"
 
 # ConfigMap for staging
 configMap:
@@ -27,6 +31,8 @@ configMap:
     LOG_LEVEL: "info"
     DEBUG: "false"
     NODE_OPTIONS: "--max-old-space-size=1024"
+    PERFORMANCE_MONITORING: "true"
+    METRICS_ENABLED: "true"
 
 # Production-like resource limits
 resources:
