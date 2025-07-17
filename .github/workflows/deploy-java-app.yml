@@ -34,11 +34,11 @@ on:
         default: false
 
 jobs:
-  # Development environment
-  deploy-dev:
+  # Deploy Java Application
+  deploy:
     uses: ./.github/workflows/shared-deploy.yml
     with:
-      environment: dev
+      environment: ${{ github.event.inputs.environment || 'auto' }}
       application_name: java-app
       application_type: java-springboot
       build_context: apps/java-app
@@ -46,47 +46,12 @@ jobs:
       helm_chart_path: helm/java-app
       force_deploy: ${{ github.event.inputs.force_deploy == 'true' }}
     secrets:
-      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
       ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
-      ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
-      ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
-      AKS_CLUSTER_NAME: ${{ secrets.AKS_CLUSTER_NAME_DEV }}
-      AKS_RESOURCE_GROUP: ${{ secrets.AKS_RESOURCE_GROUP_DEV }}
-
-  # Staging environment
-  deploy-staging:
-    uses: ./.github/workflows/shared-deploy.yml
-    with:
-      environment: staging
-      application_name: java-app
-      application_type: java-springboot
-      build_context: apps/java-app
-      dockerfile_path: apps/java-app/Dockerfile
-      helm_chart_path: helm/java-app
-      force_deploy: ${{ github.event.inputs.force_deploy == 'true' }}
-    secrets:
-      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
-      ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
-      ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
-      ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
-      AKS_CLUSTER_NAME: ${{ secrets.AKS_CLUSTER_NAME_STAGING }}
-      AKS_RESOURCE_GROUP: ${{ secrets.AKS_RESOURCE_GROUP_STAGING }}
-
-  # Production environment
-  deploy-production:
-    uses: ./.github/workflows/shared-deploy.yml
-    with:
-      environment: production
-      application_name: java-app
-      application_type: java-springboot
-      build_context: apps/java-app
-      dockerfile_path: apps/java-app/Dockerfile
-      helm_chart_path: helm/java-app
-      force_deploy: ${{ github.event.inputs.force_deploy == 'true' }}
-    secrets:
-      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
-      ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
-      ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
-      ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
-      AKS_CLUSTER_NAME: ${{ secrets.AKS_CLUSTER_NAME_PROD }}
-      AKS_RESOURCE_GROUP: ${{ secrets.AKS_RESOURCE_GROUP_PROD }}
+      KEYVAULT_NAME: ${{ secrets.KEYVAULT_NAME }}
+      # Environment-specific AKS secrets
+      AKS_CLUSTER_NAME_DEV: ${{ secrets.AKS_CLUSTER_NAME_DEV }}
+      AKS_RESOURCE_GROUP_DEV: ${{ secrets.AKS_RESOURCE_GROUP_DEV }}
+      AKS_CLUSTER_NAME_STAGING: ${{ secrets.AKS_CLUSTER_NAME_STAGING }}
+      AKS_RESOURCE_GROUP_STAGING: ${{ secrets.AKS_RESOURCE_GROUP_STAGING }}
+      AKS_CLUSTER_NAME_PROD: ${{ secrets.AKS_CLUSTER_NAME_PROD }}
+      AKS_RESOURCE_GROUP_PROD: ${{ secrets.AKS_RESOURCE_GROUP_PROD }}
