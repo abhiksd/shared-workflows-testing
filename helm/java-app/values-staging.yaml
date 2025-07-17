@@ -20,15 +20,18 @@ env:
   - name: SERVER_PORT
     value: "8080"
   - name: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
-    value: "health,info,metrics,prometheus"  # Limited actuator endpoints
+    value: "health,info,metrics,prometheus,env,configprops"  # Extended for staging testing
+  - name: MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS
+    value: "when-authorized"
 
 # ConfigMap for staging
 configMap:
   enabled: true
   data:
-    LOG_LEVEL: "info"
+    LOG_LEVEL: "INFO"
     DEBUG: "false"
-    JAVA_OPTS: "-Xms512m -Xmx1g -XX:+UseG1GC -XX:+UseStringDeduplication"
+    JAVA_OPTS: "-Xms512m -Xmx1g -XX:+UseG1GC -XX:+UseStringDeduplication -XX:MaxGCPauseMillis=200"
+    SPRING_PROFILES_INCLUDE: "actuator"
 
 # Production-like resource limits
 resources:

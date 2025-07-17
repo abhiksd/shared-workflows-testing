@@ -92,13 +92,21 @@ env:
     value: "dev"
   - name: APPLICATION_NAME
     value: "java-app"
+  - name: SERVER_PORT
+    value: "8080"
+  - name: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
+    value: "health,info,metrics,prometheus,env,configprops,beans,mappings"
+  - name: MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS
+    value: "always"
 
 # ConfigMap configuration
 configMap:
   enabled: true
   data:
-    LOG_LEVEL: "info"
-    DEBUG: "false"
+    LOG_LEVEL: "DEBUG"
+    DEBUG: "true"
+    JAVA_OPTS: "-Xms512m -Xmx1g -XX:+UseG1GC -XX:+UseStringDeduplication"
+    SPRING_PROFILES_INCLUDE: "actuator"
 
 # Liveness probe configuration (Java Spring Boot specific)
 livenessProbe:

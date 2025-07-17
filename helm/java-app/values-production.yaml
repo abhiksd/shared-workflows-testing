@@ -28,9 +28,11 @@ env:
 configMap:
   enabled: true
   data:
-    LOG_LEVEL: "warn"
+    LOG_LEVEL: "WARN"
     DEBUG: "false"
-    JAVA_OPTS: "-Xms1g -Xmx2g -XX:+UseG1GC -XX:+UseStringDeduplication -XX:MaxGCPauseMillis=200"
+    JAVA_OPTS: "-Xms1g -Xmx2g -XX:+UseG1GC -XX:+UseStringDeduplication -XX:MaxGCPauseMillis=200 -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp"
+    SPRING_PROFILES_INCLUDE: "actuator"
+    JVM_METRICS_ENABLED: "true"
 
 # Production resource limits
 resources:

@@ -21,14 +21,20 @@ env:
     value: "8080"
   - name: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
     value: "*"  # Expose all actuator endpoints in dev
+  - name: MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS
+    value: "always"
+  - name: SPRING_JPA_SHOW_SQL
+    value: "true"  # Show SQL queries in dev
 
 # ConfigMap for dev
 configMap:
   enabled: true
   data:
-    LOG_LEVEL: "debug"
+    LOG_LEVEL: "DEBUG"
     DEBUG: "true"
-    JAVA_OPTS: "-Xms256m -Xmx512m -XX:+UseG1GC"
+    JAVA_OPTS: "-Xms256m -Xmx512m -XX:+UseG1GC -Dspring.devtools.restart.enabled=true"
+    SPRING_PROFILES_INCLUDE: "actuator,dev-tools"
+    SPRING_DEVTOOLS_RESTART_ENABLED: "true"
 
 # Resource limits for dev
 resources:
