@@ -55,6 +55,8 @@ shared-app:
   ingress:
     enabled: true
     className: "nginx"
+    pathPrefix: "java-app"
+    proxyBodySize: "512m"
     annotations: {}
     hosts:
       - host: java-app-dev.local

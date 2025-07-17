@@ -57,6 +57,8 @@ shared-app:
   ingress:
     enabled: true
     className: "nginx"
+    pathPrefix: "java-app"
+    proxyBodySize: "1024m"
     annotations:
       nginx.ingress.kubernetes.io/rate-limit: "200"
       nginx.ingress.kubernetes.io/rate-limit-window: "1m"

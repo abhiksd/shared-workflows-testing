@@ -1,0 +1,20 @@
+{{- if .Values.configMap.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "nodejs-app.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "nodejs-app.labels" . | nindent 4 }}
+data:
+  {{- range $key, $value := .Values.configMap.data }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+  # Environment-specific configuration
+  environment: {{ .Values.global.environment | quote }}
+  application.name: {{ .Values.global.applicationName | quote }}
+  application.type: {{ .Values.global.applicationType | quote }}
+  # Node.js configuration
+  PORT: {{ .Values.service.port | quote }}
+  NODE_ENV: {{ .Values.global.environment | quote }}
+{{- end }}

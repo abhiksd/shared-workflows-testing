@@ -1,5 +1,5 @@
 {{- if .Values.ingress.enabled -}}
-{{- $fullName := include "shared-app.fullname" . -}}
+{{- $fullName := include "nodejs-app.fullname" . -}}
 {{- $svcPort := .Values.service.port -}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -7,12 +7,12 @@ metadata:
   name: {{ $fullName }}-ingress
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "shared-app.labels" . | nindent 4 }}
+    {{- include "nodejs-app.labels" . | nindent 4 }}
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
     nginx.ingress.kubernetes.io/use-regex: "true"
     nginx.ingress.kubernetes.io/rewrite-target: /$2
-    nginx.ingress.kubernetes.io/x-forwarded-prefix: "/{{ .Values.ingress.pathPrefix | default "shared-app" }}"
+    nginx.ingress.kubernetes.io/x-forwarded-prefix: "/{{ .Values.ingress.pathPrefix | default "nodejs-app" }}"
     nginx.ingress.kubernetes.io/proxy-body-size: "{{ .Values.ingress.proxyBodySize | default "1024m" }}"
     {{- with .Values.ingress.annotations }}
     {{- toYaml . | nindent 4 }}
@@ -25,7 +25,7 @@ spec:
       http:
         paths:
           {{- range .paths }}
-          - path: /({{ $.Values.ingress.pathPrefix | default "shared-app" }}/|$)(.*)
+          - path: /({{ $.Values.ingress.pathPrefix | default "nodejs-app" }}/|$)(.*)
             pathType: ImplementationSpecific
             backend:
               service:

@@ -53,6 +53,8 @@ shared-app:
   ingress:
     enabled: true
     className: "nginx"
+    pathPrefix: "nodejs-app"
+    proxyBodySize: "1024m"
     annotations:
       nginx.ingress.kubernetes.io/rate-limit: "100"
     hosts:
