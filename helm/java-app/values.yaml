@@ -1,0 +1,91 @@
+# Base values for Java Spring Boot Application
+# This file contains default values that can be overridden by environment-specific values
+
+shared-app:
+  # Global configuration
+  global:
+    environment: dev
+    applicationName: java-app
+    applicationType: java-springboot
+
+  # Replica count - will be overridden per environment
+  replicaCount: 1
+
+  # Image configuration
+  image:
+    repository: myregistry.azurecr.io/java-app
+    pullPolicy: IfNotPresent
+    tag: "latest"
+
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+
+  # Environment variables
+  env:
+    - name: ENVIRONMENT
+      value: "dev"
+    - name: APPLICATION_NAME
+      value: "java-app"
+    - name: SPRING_PROFILES_ACTIVE
+      value: "dev"
+    - name: SERVER_PORT
+      value: "8080"
+
+  # ConfigMap configuration
+  configMap:
+    enabled: true
+    data:
+      LOG_LEVEL: "info"
+      DEBUG: "false"
+      JAVA_OPTS: "-Xms512m -Xmx1g"
+
+  # Health checks for Spring Boot
+  livenessProbe:
+    enabled: true
+    httpGet:
+      path: /actuator/health/liveness
+      port: 8080
+    initialDelaySeconds: 60
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readinessProbe:
+    enabled: true
+    httpGet:
+      path: /actuator/health/readiness
+      port: 8080
+    initialDelaySeconds: 30
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+  # Resource limits
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+
+  # Security context
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+
+  # Monitoring
+  monitoring:
+    enabled: true
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8080"
+      prometheus.io/path: "/actuator/prometheus"

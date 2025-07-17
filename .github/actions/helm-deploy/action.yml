@@ -66,113 +66,63 @@ runs:
       id: values
       run: |
         NAMESPACE="${{ steps.namespace.outputs.namespace }}"
-        VALUES_FILE="values-${{ inputs.environment }}.yaml"
+        VALUES_FILE="${{ inputs.helm_chart_path }}/values-${{ inputs.environment }}.yaml"
+        RUNTIME_VALUES_FILE="values-runtime-${{ inputs.environment }}.yaml"
         
-        # Create environment-specific values file
-        cat > ${VALUES_FILE} << EOF
-        # Environment-specific values for ${{ inputs.environment }}
-        global:
-          environment: ${{ inputs.environment }}
-          applicationName: ${{ inputs.application_name }}
-          applicationType: ${{ inputs.application_type }}
-          
-        image:
-          repository: ${{ inputs.registry }}/${{ inputs.application_name }}
-          tag: ${{ inputs.image_tag }}
-          pullPolicy: Always
-          
-        nameOverride: ${{ inputs.application_name }}
-        fullnameOverride: ${{ inputs.application_name }}-${{ inputs.environment }}
+        echo "📝 Using environment-specific values file: ${VALUES_FILE}"
         
-        # Environment-specific configuration
-        replicaCount: $([ "${{ inputs.environment }}" = "production" ] && echo "3" || echo "1")
+        # Check if environment-specific values file exists
+        if [ ! -f "${VALUES_FILE}" ]; then
+          echo "❌ Environment-specific values file not found: ${VALUES_FILE}"
+          echo "📋 Available values files:"
+          find ${{ inputs.helm_chart_path }} -name "values*.yaml" -type f
+          exit 1
+        fi
         
-        resources:
-          limits:
-            cpu: $([ "${{ inputs.environment }}" = "production" ] && echo "1000m" || echo "500m")
-            memory: $([ "${{ inputs.environment }}" = "production" ] && echo "2Gi" || echo "1Gi")
-          requests:
-            cpu: $([ "${{ inputs.environment }}" = "production" ] && echo "500m" || echo "200m")
-            memory: $([ "${{ inputs.environment }}" = "production" ] && echo "1Gi" || echo "512Mi")
+        # Create runtime values file with dynamic values
+        cat > ${RUNTIME_VALUES_FILE} << EOF
+        # Runtime values for ${{ inputs.environment }} - Auto-generated
+        shared-app:
+          global:
+            environment: ${{ inputs.environment }}
+            applicationName: ${{ inputs.application_name }}
+            applicationType: ${{ inputs.application_type }}
             
-        service:
-          type: ClusterIP
-          port: $([ "${{ inputs.application_type }}" = "java-springboot" ] && echo "8080" || echo "3000")
-          
-        ingress:
-          enabled: true
-          className: nginx
-          annotations:
-            nginx.ingress.kubernetes.io/ssl-redirect: "true"
-            nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-            cert-manager.io/cluster-issuer: "letsencrypt-prod"
-          hosts:
-            - host: ${{ inputs.application_name }}-${{ inputs.environment }}.yourdomain.com
-              paths:
-                - path: /
-                  pathType: Prefix
-          tls:
-            - secretName: ${{ inputs.application_name }}-${{ inputs.environment }}-tls
-              hosts:
-                - ${{ inputs.application_name }}-${{ inputs.environment }}.yourdomain.com
-                
-        # Application-specific configuration
-        env:
-          - name: ENVIRONMENT
-            value: ${{ inputs.environment }}
-          - name: APPLICATION_NAME
-            value: ${{ inputs.application_name }}
-          - name: BUILD_VERSION
-            value: ${{ inputs.image_tag }}
+          image:
+            repository: ${{ inputs.registry }}/${{ inputs.application_name }}
+            tag: ${{ inputs.image_tag }}
             
-        # Health checks
-        livenessProbe:
-          httpGet:
-            path: $([ "${{ inputs.application_type }}" = "java-springboot" ] && echo "/actuator/health" || echo "/health")
-            port: $([ "${{ inputs.application_type }}" = "java-springboot" ] && echo "8080" || echo "3000")
-          initialDelaySeconds: 30
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
+          nameOverride: ${{ inputs.application_name }}
+          fullnameOverride: ${{ inputs.application_name }}-${{ inputs.environment }}
           
-        readinessProbe:
-          httpGet:
-            path: $([ "${{ inputs.application_type }}" = "java-springboot" ] && echo "/actuator/health" || echo "/health")
-            port: $([ "${{ inputs.application_type }}" = "java-springboot" ] && echo "8080" || echo "3000")
-          initialDelaySeconds: 5
-          periodSeconds: 5
-          timeoutSeconds: 3
-          failureThreshold: 3
-          
-        # Security context
-        securityContext:
-          runAsNonRoot: true
-          runAsUser: 1000
-          fsGroup: 2000
-          
-        podSecurityContext:
-          runAsNonRoot: true
-          runAsUser: 1000
-          fsGroup: 2000
-          
-        # Network policies
-        networkPolicy:
-          enabled: true
-          
-        # Pod disruption budget
-        podDisruptionBudget:
-          enabled: $([ "${{ inputs.environment }}" = "production" ] && echo "true" || echo "false")
-          minAvailable: $([ "${{ inputs.environment }}" = "production" ] && echo "1" || echo "0")
+          # Runtime environment variables
+          env:
+            - name: ENVIRONMENT
+              value: ${{ inputs.environment }}
+            - name: APPLICATION_NAME
+              value: ${{ inputs.application_name }}
+            - name: BUILD_VERSION
+              value: ${{ inputs.image_tag }}
+            - name: HELM_VERSION
+              value: ${{ inputs.helm_version }}
         EOF
         
         echo "values_file=${VALUES_FILE}" >> $GITHUB_OUTPUT
-        echo "Generated values file: ${VALUES_FILE}"
-        cat ${VALUES_FILE}
+        echo "runtime_values_file=${RUNTIME_VALUES_FILE}" >> $GITHUB_OUTPUT
+        
+        echo "✅ Values files prepared successfully"
+        echo "📄 Environment-specific values:"
+        head -20 ${VALUES_FILE}
+        echo "..."
+        echo "📄 Runtime values:"
+        cat ${RUNTIME_VALUES_FILE}
       shell: bash
 
     - name: Lint Helm chart
       run: |
-        helm lint ${{ inputs.helm_chart_path }} -f ${{ steps.values.outputs.values_file }}
+        helm lint ${{ inputs.helm_chart_path }} \
+          -f ${{ steps.values.outputs.values_file }} \
+          -f ${{ steps.values.outputs.runtime_values_file }}
       shell: bash
 
     - name: Deploy with Helm
@@ -189,8 +139,7 @@ runs:
           helm upgrade ${RELEASE_NAME} ${{ inputs.helm_chart_path }} \
             --namespace ${NAMESPACE} \
             --values ${{ steps.values.outputs.values_file }} \
-            --set image.tag=${{ inputs.image_tag }} \
-            --set image.repository=${{ inputs.registry }}/${{ inputs.application_name }} \
+            --values ${{ steps.values.outputs.runtime_values_file }} \
             --version ${{ inputs.helm_version }} \
             --wait \
             --timeout 600s \
@@ -200,8 +149,7 @@ runs:
           helm install ${RELEASE_NAME} ${{ inputs.helm_chart_path }} \
             --namespace ${NAMESPACE} \
             --values ${{ steps.values.outputs.values_file }} \
-            --set image.tag=${{ inputs.image_tag }} \
-            --set image.repository=${{ inputs.registry }}/${{ inputs.application_name }} \
+            --values ${{ steps.values.outputs.runtime_values_file }} \
             --version ${{ inputs.helm_version }} \
             --wait \
             --timeout 600s \

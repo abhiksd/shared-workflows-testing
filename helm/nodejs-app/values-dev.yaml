@@ -1,0 +1,88 @@
+# Development Environment Values for Node.js Application
+shared-app:
+  global:
+    environment: dev
+
+  # Single replica for dev
+  replicaCount: 1
+
+  image:
+    pullPolicy: Always  # Always pull latest for dev
+
+  # Environment variables
+  env:
+    - name: ENVIRONMENT
+      value: "dev"
+    - name: APPLICATION_NAME
+      value: "nodejs-app"
+    - name: NODE_ENV
+      value: "development"
+    - name: PORT
+      value: "3000"
+    - name: DEBUG
+      value: "*"  # Enable all debug logs in dev
+
+  # ConfigMap for dev
+  configMap:
+    data:
+      LOG_LEVEL: "debug"
+      DEBUG: "*"
+      NODE_OPTIONS: "--max-old-space-size=256 --inspect=0.0.0.0:9229"
+
+  # Resource limits for dev
+  resources:
+    limits:
+      cpu: 250m
+      memory: 512Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+
+  # Relaxed health checks for dev
+  livenessProbe:
+    initialDelaySeconds: 15
+    periodSeconds: 15
+    timeoutSeconds: 10
+    failureThreshold: 5
+
+  readinessProbe:
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 5
+
+  # Ingress for dev
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "false"
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+    hosts:
+      - host: nodejs-app-dev.local
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []
+
+  # No autoscaling in dev
+  autoscaling:
+    enabled: false
+
+  # Monitoring enabled for testing
+  monitoring:
+    enabled: true
+
+  # No pod disruption budget in dev
+  podDisruptionBudget:
+    enabled: false
+
+  # Network policy disabled in dev for easier debugging
+  networkPolicy:
+    enabled: false
+
+  # Service for debugging
+  service:
+    type: NodePort
+    annotations:
+      dev.kubernetes.io/debug: "true"

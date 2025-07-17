@@ -1,0 +1,91 @@
+# Base values for Node.js Application
+# This file contains default values that can be overridden by environment-specific values
+
+shared-app:
+  # Global configuration
+  global:
+    environment: dev
+    applicationName: nodejs-app
+    applicationType: nodejs
+
+  # Replica count - will be overridden per environment
+  replicaCount: 1
+
+  # Image configuration
+  image:
+    repository: myregistry.azurecr.io/nodejs-app
+    pullPolicy: IfNotPresent
+    tag: "latest"
+
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 3000
+    targetPort: 3000
+
+  # Environment variables
+  env:
+    - name: ENVIRONMENT
+      value: "dev"
+    - name: APPLICATION_NAME
+      value: "nodejs-app"
+    - name: NODE_ENV
+      value: "development"
+    - name: PORT
+      value: "3000"
+
+  # ConfigMap configuration
+  configMap:
+    enabled: true
+    data:
+      LOG_LEVEL: "info"
+      DEBUG: "nodejs-app:*"
+      NODE_OPTIONS: "--max-old-space-size=512"
+
+  # Health checks for Node.js
+  livenessProbe:
+    enabled: true
+    httpGet:
+      path: /health
+      port: 3000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readinessProbe:
+    enabled: true
+    httpGet:
+      path: /ready
+      port: 3000
+    initialDelaySeconds: 15
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+  # Resource limits
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+
+  # Security context
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1001
+
+  # Monitoring
+  monitoring:
+    enabled: true
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "3000"
+      prometheus.io/path: "/metrics"

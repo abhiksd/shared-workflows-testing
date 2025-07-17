@@ -1,0 +1,183 @@
+# Production Environment Values for Java Spring Boot Application
+shared-app:
+  global:
+    environment: production
+
+  # High availability with multiple replicas
+  replicaCount: 3
+
+  image:
+    pullPolicy: IfNotPresent
+
+  # Environment variables
+  env:
+    - name: ENVIRONMENT
+      value: "production"
+    - name: APPLICATION_NAME
+      value: "java-app"
+    - name: SPRING_PROFILES_ACTIVE
+      value: "production"
+    - name: SERVER_PORT
+      value: "8080"
+    - name: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
+      value: "health,info,metrics,prometheus"  # Minimal actuator endpoints for security
+    - name: MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS
+      value: "never"  # Hide health details in production
+
+  # ConfigMap for production
+  configMap:
+    data:
+      LOG_LEVEL: "warn"
+      DEBUG: "false"
+      JAVA_OPTS: "-Xms1g -Xmx2g -XX:+UseG1GC -XX:+UseStringDeduplication -XX:+DisableExplicitGC -server"
+
+  # Production resource limits
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+    requests:
+      cpu: 1000m
+      memory: 2Gi
+
+  # Strict health checks for production
+  livenessProbe:
+    initialDelaySeconds: 90
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readinessProbe:
+    initialDelaySeconds: 60
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+  # Production ingress with SSL and security headers
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      nginx.ingress.kubernetes.io/rate-limit: "200"
+      nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+      nginx.ingress.kubernetes.io/configuration-snippet: |
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+      nginx.ingress.kubernetes.io/server-snippet: |
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
+          expires 1y;
+          add_header Cache-Control "public, immutable";
+        }
+    hosts:
+      - host: java-app.company.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: java-app-prod-tls
+        hosts:
+          - java-app.company.com
+
+  # Production autoscaling
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 60
+    targetMemoryUtilizationPercentage: 70
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 300
+        policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60
+      scaleUp:
+        stabilizationWindowSeconds: 60
+        policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 60
+
+  # Full monitoring suite
+  monitoring:
+    enabled: true
+
+  # Pod disruption budget for high availability
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 2
+
+  # Network policy for security
+  networkPolicy:
+    enabled: true
+
+  # Pod anti-affinity for availability
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - java-app
+          topologyKey: kubernetes.io/hostname
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/worker
+                operator: In
+                values:
+                  - "true"
+
+  # Production security context
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 2000
+    seccompProfile:
+      type: RuntimeDefault
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+
+  # Node selector for production nodes
+  nodeSelector:
+    node-role.kubernetes.io/worker: "true"
+
+  # Tolerations for production workloads
+  tolerations:
+    - key: "production-workload"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+
+  # Additional pod annotations for production
+  podAnnotations:
+    cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/actuator/prometheus"
+
+  # Service annotations for production
+  service:
+    annotations:
+      service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+
+  # Tests enabled for production validation
+  tests:
+    enabled: true
