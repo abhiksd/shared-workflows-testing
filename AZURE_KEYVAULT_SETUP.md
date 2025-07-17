@@ -12,14 +12,22 @@ This guide explains how to set up and use Azure Key Vault integration with your 
 ## Architecture Overview
 
 ```
-GitHub Actions → Azure Key Vault → AKS Secrets Store CSI → Pod Volume Mount
+GitHub Actions (Managed Identity) → Azure Key Vault → AKS Workload Identity → Pod Volume Mount
 ```
 
 The integration works by:
-1. GitHub Actions injects Key Vault configuration into Helm values
-2. Helm creates SecretProviderClass resources
-3. CSI Secrets Store driver mounts secrets from Azure Key Vault
-4. Applications read secrets from mounted files
+1. GitHub Actions authenticates using Managed Identity (no credentials stored)
+2. GitHub Actions pushes to ACR using Managed Identity
+3. Helm injects Key Vault configuration into deployment values
+4. AKS Workload Identity provides secure pod-level authentication
+5. CSI Secrets Store driver mounts secrets from Azure Key Vault
+6. Applications read secrets from mounted files
+
+**Security Benefits:**
+- No stored credentials in GitHub secrets (except IDs)
+- Managed Identity provides secure, token-based authentication
+- Workload Identity enables pod-level security
+- Automatic token rotation and management
 
 ## Setup Steps
 
@@ -53,32 +61,74 @@ az aks enable-addons --addons azure-keyvault-secrets-provider --name myAKSCluste
 kubectl get pods -n kube-system | grep secrets-store
 ```
 
-### 3. Azure Managed Identity Setup
+### 3. Azure Workload Identity Setup
 
-Create a managed identity and assign Key Vault permissions:
+Create a managed identity and configure Azure Workload Identity:
 
 ```bash
+# Variables
+RESOURCE_GROUP="myResourceGroup"
+CLUSTER_NAME="myAKSCluster"
+IDENTITY_NAME="myAKSKeyVaultIdentity"
+KEYVAULT_NAME="myKeyVault"
+NAMESPACE="production"
+SERVICE_ACCOUNT_NAME="java-app-production"
+
 # Create managed identity
-az identity create --name myAKSKeyVaultIdentity --resource-group myResourceGroup
+az identity create --name $IDENTITY_NAME --resource-group $RESOURCE_GROUP
 
 # Get the identity details
-IDENTITY_CLIENT_ID=$(az identity show --name myAKSKeyVaultIdentity --resource-group myResourceGroup --query clientId -o tsv)
-IDENTITY_OBJECT_ID=$(az identity show --name myAKSKeyVaultIdentity --resource-group myResourceGroup --query principalId -o tsv)
+IDENTITY_CLIENT_ID=$(az identity show --name $IDENTITY_NAME --resource-group $RESOURCE_GROUP --query clientId -o tsv)
+IDENTITY_OBJECT_ID=$(az identity show --name $IDENTITY_NAME --resource-group $RESOURCE_GROUP --query principalId -o tsv)
+
+# Enable workload identity on AKS cluster (if not already enabled)
+az aks update --resource-group $RESOURCE_GROUP --name $CLUSTER_NAME --enable-workload-identity --enable-oidc-issuer
+
+# Get the OIDC issuer URL
+OIDC_ISSUER=$(az aks show --resource-group $RESOURCE_GROUP --name $CLUSTER_NAME --query "oidcIssuerProfile.issuerUrl" -o tsv)
+
+# Create federated identity credential
+az identity federated-credential create \
+  --name "${IDENTITY_NAME}-federated" \
+  --identity-name $IDENTITY_NAME \
+  --resource-group $RESOURCE_GROUP \
+  --issuer $OIDC_ISSUER \
+  --subject "system:serviceaccount:${NAMESPACE}:${SERVICE_ACCOUNT_NAME}"
 
 # Assign Key Vault permissions
-az keyvault set-policy --name myKeyVault --object-id $IDENTITY_OBJECT_ID --secret-permissions get list
+az keyvault set-policy --name $KEYVAULT_NAME --object-id $IDENTITY_OBJECT_ID --secret-permissions get list
 
-# Associate identity with AKS cluster
-az aks pod-identity add --resource-group myResourceGroup --cluster-name myAKSCluster --namespace default --name myAKSKeyVaultIdentity --identity-resource-id /subscriptions/SUBSCRIPTION_ID/resourcegroups/myResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/myAKSKeyVaultIdentity
+# Grant ACR pull permissions for container image pulls
+ACR_NAME="myregistry"
+az role assignment create \
+  --assignee $IDENTITY_OBJECT_ID \
+  --role "AcrPull" \
+  --scope "/subscriptions/$(az account show --query id -o tsv)/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ContainerRegistry/registries/$ACR_NAME"
 ```
 
-### 4. GitHub Repository Secrets
+### 4. GitHub Actions Runner Setup
+
+Configure your GitHub Actions runners to use managed identity:
+
+```bash
+# If using self-hosted runners, ensure they have managed identity configured
+# For Azure VMs running as GitHub Actions runners:
+
+# Assign the same managed identity to the runner VM
+az vm identity assign \
+  --resource-group $RESOURCE_GROUP \
+  --name $RUNNER_VM_NAME \
+  --identities "/subscriptions/$(az account show --query id -o tsv)/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ManagedIdentity/userAssignedIdentities/$IDENTITY_NAME"
+```
+
+### 5. GitHub Repository Secrets
 
 Configure the following secrets in your GitHub repository:
 
 - `AZURE_TENANT_ID`: Your Azure tenant ID
 - `AZURE_CLIENT_ID`: The client ID of your managed identity
 - `KEYVAULT_NAME`: Name of your Azure Key Vault
+- `ACR_LOGIN_SERVER`: Your Azure Container Registry login server (e.g., myregistry.azurecr.io)
 
 ## Configuration
 

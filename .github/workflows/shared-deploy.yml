@@ -250,8 +250,8 @@ jobs:
           dockerfile_path: ${{ inputs.dockerfile_path }}
           image_tag: ${{ needs.setup.outputs.image_tag }}
           registry: ${{ env.REGISTRY }}
-          registry_username: ${{ secrets.ACR_USERNAME }}
-          registry_password: ${{ secrets.ACR_PASSWORD }}
+          azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
 
   deploy:
     runs-on: ubuntu-latest

@@ -50,6 +50,13 @@ outputs:
 runs:
   using: 'composite'
   steps:
+    - name: Azure Login with Managed Identity
+      uses: azure/login@v1
+      with:
+        auth-type: IDENTITY
+        tenant-id: ${{ inputs.azure_tenant_id }}
+        client-id: ${{ inputs.azure_client_id }}
+
     - name: Install Helm
       uses: azure/setup-helm@v3
       with:
