@@ -56,19 +56,13 @@ service:
 ingress:
   enabled: false
   className: "nginx"
-  annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  annotations: {}
   hosts:
     - host: shared-app.local
       paths:
         - path: /
           pathType: Prefix
-  tls:
-    - secretName: shared-app-tls
-      hosts:
-        - shared-app.local
+  tls: []
 
 # Resource limits and requests
 resources:

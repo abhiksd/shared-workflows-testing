@@ -49,24 +49,18 @@ shared-app:
     timeoutSeconds: 3
     failureThreshold: 3
 
-  # Ingress with SSL
+  # Ingress configuration
   ingress:
     enabled: true
     className: "nginx"
     annotations:
-      nginx.ingress.kubernetes.io/ssl-redirect: "true"
-      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-      cert-manager.io/cluster-issuer: "letsencrypt-staging"
       nginx.ingress.kubernetes.io/rate-limit: "100"
     hosts:
       - host: nodejs-app-staging.company.com
         paths:
           - path: /
             pathType: Prefix
-    tls:
-      - secretName: nodejs-app-staging-tls
-        hosts:
-          - nodejs-app-staging.company.com
+    tls: []
 
   # Enable autoscaling for staging
   autoscaling:

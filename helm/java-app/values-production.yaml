@@ -53,21 +53,17 @@ shared-app:
     timeoutSeconds: 3
     failureThreshold: 3
 
-  # Production ingress with SSL and security headers
+  # Production ingress configuration
   ingress:
     enabled: true
     className: "nginx"
     annotations:
-      nginx.ingress.kubernetes.io/ssl-redirect: "true"
-      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-      cert-manager.io/cluster-issuer: "letsencrypt-prod"
       nginx.ingress.kubernetes.io/rate-limit: "200"
       nginx.ingress.kubernetes.io/rate-limit-window: "1m"
       nginx.ingress.kubernetes.io/configuration-snippet: |
         add_header X-Frame-Options "SAMEORIGIN" always;
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-XSS-Protection "1; mode=block" always;
-        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
       nginx.ingress.kubernetes.io/server-snippet: |
         location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
           expires 1y;
@@ -78,10 +74,7 @@ shared-app:
         paths:
           - path: /
             pathType: Prefix
-    tls:
-      - secretName: java-app-prod-tls
-        hosts:
-          - java-app.company.com
+    tls: []
 
   # Production autoscaling
   autoscaling:
