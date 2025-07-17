@@ -63,11 +63,8 @@ readinessProbe:
 # Ingress configuration
 ingress:
   enabled: true
-  className: "nginx"
   pathPrefix: "java-app"
   proxyBodySize: "1024m"
-  annotations:
-    nginx.ingress.kubernetes.io/rate-limit: "100"
   hosts:
     - host: java-app-staging.company.com
 

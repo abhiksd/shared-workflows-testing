@@ -65,21 +65,8 @@ readinessProbe:
 # Production ingress configuration
 ingress:
   enabled: true
-  className: "nginx"
   pathPrefix: "java-app"
   proxyBodySize: "1024m"
-  annotations:
-    nginx.ingress.kubernetes.io/rate-limit: "200"
-    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
-    nginx.ingress.kubernetes.io/configuration-snippet: |
-      add_header X-Frame-Options "SAMEORIGIN" always;
-      add_header X-Content-Type-Options "nosniff" always;
-      add_header X-XSS-Protection "1; mode=block" always;
-    nginx.ingress.kubernetes.io/server-snippet: |
-      location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-      }
   hosts:
     - host: java-app.company.com
 

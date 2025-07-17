@@ -61,26 +61,8 @@ readinessProbe:
 # Production ingress configuration
 ingress:
   enabled: true
-  className: "nginx"
   pathPrefix: "nodejs-app"
   proxyBodySize: "1024m"
-  annotations:
-    nginx.ingress.kubernetes.io/rate-limit: "200"
-    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
-    nginx.ingress.kubernetes.io/configuration-snippet: |
-      add_header X-Frame-Options "SAMEORIGIN" always;
-      add_header X-Content-Type-Options "nosniff" always;
-      add_header X-XSS-Protection "1; mode=block" always;
-      add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    nginx.ingress.kubernetes.io/server-snippet: |
-      location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-      }
-      location ~* \.(json|xml)$ {
-        expires 1h;
-        add_header Cache-Control "public";
-      }
   hosts:
     - host: nodejs-app.company.com
 

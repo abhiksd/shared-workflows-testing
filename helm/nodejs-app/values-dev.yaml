@@ -61,10 +61,8 @@ readinessProbe:
 # Ingress for dev
 ingress:
   enabled: true
-  className: "nginx"
   pathPrefix: "nodejs-app"
   proxyBodySize: "512m"
-  annotations: {}
   hosts:
     - host: nodejs-app-dev.local
 

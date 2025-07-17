@@ -55,10 +55,8 @@ service:
 # Ingress configuration
 ingress:
   enabled: false
-  className: "nginx"
   pathPrefix: "nodejs-app"
   proxyBodySize: "1024m"
-  annotations: {}
   hosts:
     - host: nodejs-app.local
 

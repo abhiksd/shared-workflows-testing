@@ -55,10 +55,8 @@ service:
 # Ingress configuration
 ingress:
   enabled: false
-  className: "nginx"
   pathPrefix: "shared-app"
   proxyBodySize: "1024m"
-  annotations: {}
   hosts:
     - host: shared-app.local
 
