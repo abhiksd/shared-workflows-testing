@@ -1,0 +1,364 @@
+name: PR Security Check
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+    types:
+      - opened
+      - synchronize
+      - reopened
+  pull_request_review:
+    types:
+      - submitted
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: write
+  checks: write
+
+env:
+  REGISTRY: ${{ secrets.ACR_LOGIN_SERVER }}
+
+jobs:
+  # Detect changed applications
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      java-app-changed: ${{ steps.changes.outputs.java-app }}
+      nodejs-app-changed: ${{ steps.changes.outputs.nodejs-app }}
+      should-run-security: ${{ steps.changes.outputs.should-run }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect Application Changes
+        id: changes
+        uses: dorny/paths-filter@v2
+        with:
+          filters: |
+            java-app:
+              - 'apps/java-app/**'
+              - 'helm/java-app/**'
+              - '.github/workflows/deploy-java-app.yml'
+              - '.github/workflows/shared-deploy.yml'
+              - '.github/actions/**'
+            nodejs-app:
+              - 'apps/nodejs-app/**'
+              - 'helm/nodejs-app/**'
+              - '.github/workflows/deploy-nodejs-app.yml'
+              - '.github/workflows/shared-deploy.yml'
+              - '.github/actions/**'
+
+      - name: Determine Security Scan Requirement
+        id: should-run
+        run: |
+          if [[ "${{ steps.changes.outputs.java-app }}" == "true" || "${{ steps.changes.outputs.nodejs-app }}" == "true" ]]; then
+            echo "should-run=true" >> $GITHUB_OUTPUT
+            echo "🔍 Application changes detected - security scans required"
+          else
+            echo "should-run=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ No application changes detected - skipping security scans"
+          fi
+
+  # Security scan for Java application
+  java-app-security:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.java-app-changed == 'true'
+    outputs:
+      security-status: ${{ steps.security.outputs.security_status }}
+      sonar-status: ${{ steps.security.outputs.sonar_quality_gate_status }}
+      checkmarx-results: ${{ steps.security.outputs.checkmarx_results }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+
+      - name: Build Java Application
+        run: |
+          cd apps/java-app
+          mvn clean compile test-compile -B
+
+      - name: Java Application Security Scan
+        id: security
+        uses: ./.github/actions/security-scan
+        with:
+          application_name: java-app
+          application_type: java-springboot
+          build_context: apps/java-app
+          # SonarQube Configuration - Stricter for PRs
+          sonar_enabled: ${{ vars.SONAR_ENABLED || 'true' }}
+          sonar_host_url: ${{ vars.SONAR_HOST_URL }}
+          sonar_token: ${{ secrets.SONAR_TOKEN }}
+          sonar_project_key: ${{ vars.SONAR_PROJECT_KEY || 'java-app' }}
+          sonar_coverage_threshold: ${{ vars.SONAR_PR_COVERAGE_THRESHOLD || vars.SONAR_COVERAGE_THRESHOLD || '75' }}
+          sonar_reliability_rating: ${{ vars.SONAR_PR_RELIABILITY_RATING || vars.SONAR_RELIABILITY_RATING || '1' }}
+          sonar_security_rating: ${{ vars.SONAR_PR_SECURITY_RATING || vars.SONAR_SECURITY_RATING || '1' }}
+          sonar_maintainability_rating: ${{ vars.SONAR_PR_MAINTAINABILITY_RATING || vars.SONAR_MAINTAINABILITY_RATING || '2' }}
+          # Checkmarx Configuration - Stricter for PRs
+          checkmarx_enabled: ${{ vars.CHECKMARX_ENABLED || 'true' }}
+          checkmarx_url: ${{ vars.CHECKMARX_URL }}
+          checkmarx_username: ${{ secrets.CHECKMARX_USERNAME }}
+          checkmarx_password: ${{ secrets.CHECKMARX_PASSWORD }}
+          checkmarx_client_secret: ${{ secrets.CHECKMARX_CLIENT_SECRET }}
+          checkmarx_tenant: ${{ vars.CHECKMARX_TENANT }}
+          checkmarx_scan_types: ${{ vars.CHECKMARX_PR_SCAN_TYPES || vars.CHECKMARX_SCAN_TYPES || 'sast,sca' }}
+          checkmarx_sast_preset: ${{ vars.CHECKMARX_SAST_PRESET || 'Checkmarx Default' }}
+          checkmarx_sca_resolver: ${{ vars.CHECKMARX_SCA_RESOLVER || 'auto' }}
+          checkmarx_kics_platforms: ${{ vars.CHECKMARX_KICS_PLATFORMS || 'Docker,Kubernetes,Terraform' }}
+          checkmarx_fail_build: 'true'  # Always fail PRs on security issues
+          checkmarx_high_threshold: ${{ vars.CHECKMARX_PR_HIGH_THRESHOLD || '0' }}
+          checkmarx_medium_threshold: ${{ vars.CHECKMARX_PR_MEDIUM_THRESHOLD || vars.CHECKMARX_MEDIUM_THRESHOLD || '3' }}
+          checkmarx_low_threshold: ${{ vars.CHECKMARX_PR_LOW_THRESHOLD || vars.CHECKMARX_LOW_THRESHOLD || '10' }}
+          # Additional Security Tools
+          dependency_check_enabled: ${{ vars.DEPENDENCY_CHECK_ENABLED || 'true' }}
+          secret_scan_enabled: ${{ vars.SECRET_SCAN_ENABLED || 'true' }}
+
+  # Security scan for Node.js application
+  nodejs-app-security:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.nodejs-app-changed == 'true'
+    outputs:
+      security-status: ${{ steps.security.outputs.security_status }}
+      sonar-status: ${{ steps.security.outputs.sonar_quality_gate_status }}
+      checkmarx-results: ${{ steps.security.outputs.checkmarx_results }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: apps/nodejs-app/package-lock.json
+
+      - name: Install Node.js Dependencies
+        run: |
+          cd apps/nodejs-app
+          npm ci
+
+      - name: Build Node.js Application
+        run: |
+          cd apps/nodejs-app
+          npm run build || true  # Don't fail if no build script
+
+      - name: Node.js Application Security Scan
+        id: security
+        uses: ./.github/actions/security-scan
+        with:
+          application_name: nodejs-app
+          application_type: nodejs
+          build_context: apps/nodejs-app
+          # SonarQube Configuration - Stricter for PRs
+          sonar_enabled: ${{ vars.SONAR_ENABLED || 'true' }}
+          sonar_host_url: ${{ vars.SONAR_HOST_URL }}
+          sonar_token: ${{ secrets.SONAR_TOKEN }}
+          sonar_project_key: ${{ vars.SONAR_PROJECT_KEY || 'nodejs-app' }}
+          sonar_coverage_threshold: ${{ vars.SONAR_PR_COVERAGE_THRESHOLD || vars.SONAR_COVERAGE_THRESHOLD || '75' }}
+          sonar_reliability_rating: ${{ vars.SONAR_PR_RELIABILITY_RATING || vars.SONAR_RELIABILITY_RATING || '1' }}
+          sonar_security_rating: ${{ vars.SONAR_PR_SECURITY_RATING || vars.SONAR_SECURITY_RATING || '1' }}
+          sonar_maintainability_rating: ${{ vars.SONAR_PR_MAINTAINABILITY_RATING || vars.SONAR_MAINTAINABILITY_RATING || '2' }}
+          # Checkmarx Configuration - Stricter for PRs
+          checkmarx_enabled: ${{ vars.CHECKMARX_ENABLED || 'true' }}
+          checkmarx_url: ${{ vars.CHECKMARX_URL }}
+          checkmarx_username: ${{ secrets.CHECKMARX_USERNAME }}
+          checkmarx_password: ${{ secrets.CHECKMARX_PASSWORD }}
+          checkmarx_client_secret: ${{ secrets.CHECKMARX_CLIENT_SECRET }}
+          checkmarx_tenant: ${{ vars.CHECKMARX_TENANT }}
+          checkmarx_scan_types: ${{ vars.CHECKMARX_PR_SCAN_TYPES || vars.CHECKMARX_SCAN_TYPES || 'sast,sca' }}
+          checkmarx_sast_preset: ${{ vars.CHECKMARX_SAST_PRESET || 'Checkmarx Default' }}
+          checkmarx_sca_resolver: ${{ vars.CHECKMARX_SCA_RESOLVER || 'auto' }}
+          checkmarx_kics_platforms: ${{ vars.CHECKMARX_KICS_PLATFORMS || 'Docker,Kubernetes,Terraform' }}
+          checkmarx_fail_build: 'true'  # Always fail PRs on security issues
+          checkmarx_high_threshold: ${{ vars.CHECKMARX_PR_HIGH_THRESHOLD || '0' }}
+          checkmarx_medium_threshold: ${{ vars.CHECKMARX_PR_MEDIUM_THRESHOLD || vars.CHECKMARX_MEDIUM_THRESHOLD || '3' }}
+          checkmarx_low_threshold: ${{ vars.CHECKMARX_PR_LOW_THRESHOLD || vars.CHECKMARX_LOW_THRESHOLD || '10' }}
+          # Additional Security Tools
+          dependency_check_enabled: ${{ vars.DEPENDENCY_CHECK_ENABLED || 'true' }}
+          secret_scan_enabled: ${{ vars.SECRET_SCAN_ENABLED || 'true' }}
+
+  # Security Summary and PR Comment
+  security-summary:
+    runs-on: ubuntu-latest
+    needs: [detect-changes, java-app-security, nodejs-app-security]
+    if: always() && needs.detect-changes.outputs.should-run-security == 'true'
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate Security Summary
+        id: summary
+        run: |
+          echo "📋 Generating comprehensive security summary..."
+          
+          OVERALL_STATUS="PASSED"
+          JAVA_STATUS="${{ needs.java-app-security.outputs.security-status || 'SKIPPED' }}"
+          NODEJS_STATUS="${{ needs.nodejs-app-security.outputs.security-status || 'SKIPPED' }}"
+          
+          # Determine overall status
+          if [[ "$JAVA_STATUS" == "FAILED" || "$NODEJS_STATUS" == "FAILED" ]]; then
+            OVERALL_STATUS="FAILED"
+          elif [[ "$JAVA_STATUS" == "PASSED" || "$NODEJS_STATUS" == "PASSED" ]]; then
+            OVERALL_STATUS="PASSED"
+          fi
+          
+          # Create comprehensive PR comment
+          cat > pr-comment.md << EOF
+          ## 🔒 Security Scan Results
+          
+          ### Overview
+          | Application | Status | SonarQube | Checkmarx Results |
+          |-------------|--------|-----------|------------------|
+          EOF
+          
+          if [[ "${{ needs.detect-changes.outputs.java-app-changed }}" == "true" ]]; then
+            cat >> pr-comment.md << EOF
+          | **Java App** | ${{ needs.java-app-security.outputs.security-status == 'PASSED' && '✅ PASSED' || '❌ FAILED' }} | ${{ needs.java-app-security.outputs.sonar-status || 'N/A' }} | ${{ needs.java-app-security.outputs.checkmarx-results || 'N/A' }} |
+          EOF
+          fi
+          
+          if [[ "${{ needs.detect-changes.outputs.nodejs-app-changed }}" == "true" ]]; then
+            cat >> pr-comment.md << EOF
+          | **Node.js App** | ${{ needs.nodejs-app-security.outputs.security-status == 'PASSED' && '✅ PASSED' || '❌ FAILED' }} | ${{ needs.nodejs-app-security.outputs.sonar-status || 'N/A' }} | ${{ needs.nodejs-app-security.outputs.checkmarx-results || 'N/A' }} |
+          EOF
+          fi
+          
+          cat >> pr-comment.md << EOF
+          
+          ### Security Thresholds
+          - **SonarQube Coverage**: ≥${{ vars.SONAR_PR_COVERAGE_THRESHOLD || vars.SONAR_COVERAGE_THRESHOLD || '75' }}%
+          - **Checkmarx High Severity**: ≤${{ vars.CHECKMARX_PR_HIGH_THRESHOLD || '0' }}
+          - **Checkmarx Medium Severity**: ≤${{ vars.CHECKMARX_PR_MEDIUM_THRESHOLD || vars.CHECKMARX_MEDIUM_THRESHOLD || '3' }}
+          - **Checkmarx Low Severity**: ≤${{ vars.CHECKMARX_PR_LOW_THRESHOLD || vars.CHECKMARX_LOW_THRESHOLD || '10' }}
+          
+          ### Security Tools Enabled
+          - **SonarQube**: ${{ vars.SONAR_ENABLED == 'false' && '❌ Disabled' || '✅ Enabled' }}
+          - **Checkmarx SAST**: ${{ contains(vars.CHECKMARX_PR_SCAN_TYPES || vars.CHECKMARX_SCAN_TYPES || 'sast,sca', 'sast') && '✅ Enabled' || '❌ Disabled' }}
+          - **Checkmarx SCA**: ${{ contains(vars.CHECKMARX_PR_SCAN_TYPES || vars.CHECKMARX_SCAN_TYPES || 'sast,sca', 'sca') && '✅ Enabled' || '❌ Disabled' }}
+          - **Checkmarx KICS**: ${{ contains(vars.CHECKMARX_PR_SCAN_TYPES || vars.CHECKMARX_SCAN_TYPES || 'sast,sca', 'kics') && '✅ Enabled' || '❌ Disabled' }}
+          - **OWASP Dependency Check**: ${{ vars.DEPENDENCY_CHECK_ENABLED == 'false' && '❌ Disabled' || '✅ Enabled' }}
+          - **Secret Scanning**: ${{ vars.SECRET_SCAN_ENABLED == 'false' && '❌ Disabled' || '✅ Enabled' }}
+          
+          EOF
+          
+          if [[ "$OVERALL_STATUS" == "PASSED" ]]; then
+            cat >> pr-comment.md << EOF
+          ### ✅ Overall Status: PASSED
+          
+          All security scans have passed. This PR meets the security requirements and can be merged.
+          
+          EOF
+          else
+            cat >> pr-comment.md << EOF
+          ### ❌ Overall Status: FAILED
+          
+          **Security scans have failed. This PR cannot be merged until all security issues are resolved.**
+          
+          Please review the security scan results and fix any identified issues before requesting review again.
+          
+          EOF
+          fi
+          
+          cat >> pr-comment.md << EOF
+          ---
+          *Generated by Security Scan Workflow on $(date -u +"%Y-%m-%d %H:%M:%S UTC")*
+          EOF
+          
+          echo "overall_status=${OVERALL_STATUS}" >> $GITHUB_OUTPUT
+          
+          echo "📊 Security summary generated:"
+          cat pr-comment.md
+
+      - name: Comment PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const comment = fs.readFileSync('pr-comment.md', 'utf8');
+            
+            // Find existing security comment
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const existingComment = comments.data.find(comment => 
+              comment.body.includes('🔒 Security Scan Results')
+            );
+            
+            if (existingComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: comment
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
+            }
+
+      - name: Set PR Status
+        run: |
+          OVERALL_STATUS="${{ steps.summary.outputs.overall_status }}"
+          
+          if [[ "$OVERALL_STATUS" == "FAILED" ]]; then
+            echo "❌ Security scans failed - blocking PR merge"
+            exit 1
+          else
+            echo "✅ Security scans passed - PR can be merged"
+          fi
+
+  # Final security gate
+  security-gate:
+    runs-on: ubuntu-latest
+    needs: [detect-changes, java-app-security, nodejs-app-security, security-summary]
+    if: always() && needs.detect-changes.outputs.should-run-security == 'true'
+    steps:
+      - name: Security Gate Check
+        run: |
+          JAVA_STATUS="${{ needs.java-app-security.outputs.security-status || 'SKIPPED' }}"
+          NODEJS_STATUS="${{ needs.nodejs-app-security.outputs.security-status || 'SKIPPED' }}"
+          
+          echo "🔒 Security Gate Evaluation:"
+          echo "Java App Security Status: $JAVA_STATUS"
+          echo "Node.js App Security Status: $NODEJS_STATUS"
+          
+          # Check if any required security scan failed
+          if [[ "$JAVA_STATUS" == "FAILED" ]] || [[ "$NODEJS_STATUS" == "FAILED" ]]; then
+            echo "❌ Security gate FAILED - One or more security scans failed"
+            echo "This PR cannot be merged until all security issues are resolved."
+            exit 1
+          elif [[ "$JAVA_STATUS" == "PASSED" ]] || [[ "$NODEJS_STATUS" == "PASSED" ]]; then
+            echo "✅ Security gate PASSED - All security scans passed"
+            echo "This PR meets security requirements and can be merged."
+          else
+            echo "ℹ️ Security gate SKIPPED - No application changes detected"
+          fi
