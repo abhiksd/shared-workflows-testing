@@ -59,8 +59,61 @@ env:
   REGISTRY: ${{ secrets.ACR_LOGIN_SERVER }}
   
 jobs:
+  validate-environment:
+    runs-on: ubuntu-latest
+    outputs:
+      should_deploy: ${{ steps.check.outputs.should_deploy }}
+    steps:
+      - name: Validate environment and branch rules
+        id: check
+        run: |
+          ENVIRONMENT="${{ inputs.environment }}"
+          GITHUB_REF="${{ github.ref }}"
+          EVENT_NAME="${{ github.event_name }}"
+          
+          echo "Checking deployment rules for environment: $ENVIRONMENT"
+          echo "GitHub ref: $GITHUB_REF"
+          echo "Event name: $EVENT_NAME"
+          
+          SHOULD_DEPLOY="false"
+          
+          case "$ENVIRONMENT" in
+            "dev")
+              if [[ "$GITHUB_REF" == "refs/heads/develop" ]] || [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+                SHOULD_DEPLOY="true"
+                echo "✅ Dev deployment approved: develop branch or manual trigger"
+              else
+                echo "❌ Dev deployment blocked: must be develop branch or manual trigger"
+              fi
+              ;;
+            "staging")
+              if [[ "$GITHUB_REF" == "refs/heads/main" ]] || [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+                SHOULD_DEPLOY="true"
+                echo "✅ Staging deployment approved: main branch or manual trigger"
+              else
+                echo "❌ Staging deployment blocked: must be main branch or manual trigger"
+              fi
+              ;;
+            "production")
+              if [[ "$GITHUB_REF" == refs/heads/release/* ]] || [[ "$GITHUB_REF" == refs/tags/* ]] || [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+                SHOULD_DEPLOY="true"
+                echo "✅ Production deployment approved: release branch, tag, or manual trigger"
+              else
+                echo "❌ Production deployment blocked: must be release branch, tag, or manual trigger"
+              fi
+              ;;
+            *)
+              echo "❌ Invalid environment: $ENVIRONMENT"
+              ;;
+          esac
+          
+          echo "should_deploy=$SHOULD_DEPLOY" >> $GITHUB_OUTPUT
+          echo "Final decision: should_deploy=$SHOULD_DEPLOY"
+
   setup:
     runs-on: ubuntu-latest
+    needs: validate-environment
+    if: needs.validate-environment.outputs.should_deploy == 'true'
     outputs:
       version: ${{ steps.version.outputs.version }}
       image_tag: ${{ steps.version.outputs.image_tag }}
@@ -95,8 +148,8 @@ jobs:
 
   maven-build:
     runs-on: ubuntu-latest
-    needs: setup
-    if: needs.setup.outputs.should_deploy == 'true' && inputs.application_type == 'java-springboot'
+    needs: [validate-environment, setup]
+    if: needs.validate-environment.outputs.should_deploy == 'true' && needs.setup.outputs.should_deploy == 'true' && inputs.application_type == 'java-springboot'
     outputs:
       jar_artifact: ${{ steps.maven.outputs.artifact_name }}
       build_version: ${{ steps.maven.outputs.build_version }}
@@ -122,8 +175,8 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
-    needs: [setup, maven-build]
-    if: needs.setup.outputs.should_deploy == 'true' && !failure() && !cancelled()
+    needs: [validate-environment, setup, maven-build]
+    if: needs.validate-environment.outputs.should_deploy == 'true' && needs.setup.outputs.should_deploy == 'true' && !failure() && !cancelled()
     steps:
       - name: Clean workspace and Docker
         uses: ./.github/actions/workspace-cleanup
@@ -155,8 +208,8 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
-    needs: [setup, build]
-    if: needs.setup.outputs.should_deploy == 'true' && !failure() && !cancelled()
+    needs: [validate-environment, setup, build]
+    if: needs.validate-environment.outputs.should_deploy == 'true' && needs.setup.outputs.should_deploy == 'true' && !failure() && !cancelled()
     environment: ${{ inputs.environment }}
     steps:
       - name: Clean workspace
@@ -188,8 +241,9 @@ jobs:
 
   create_release:
     runs-on: ubuntu-latest
-    needs: [setup, deploy]
+    needs: [validate-environment, setup, deploy]
     if: |
+      needs.validate-environment.outputs.should_deploy == 'true' && 
       needs.setup.outputs.should_deploy == 'true' && 
       inputs.environment == 'production' && 
       (startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/tags/')) &&
@@ -212,8 +266,8 @@ jobs:
 
   cleanup:
     runs-on: ubuntu-latest
-    needs: [setup, maven-build, build, deploy, create_release]
-    if: always()
+    needs: [validate-environment, setup, maven-build, build, deploy, create_release]
+    if: always() && needs.validate-environment.outputs.should_deploy == 'true'
     steps:
       - name: Final comprehensive cleanup
         uses: ./.github/actions/workspace-cleanup
