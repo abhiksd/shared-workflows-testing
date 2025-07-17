@@ -67,10 +67,6 @@ ingress:
   annotations: {}
   hosts:
     - host: nodejs-app-dev.local
-      paths:
-        - path: /
-          pathType: Prefix
-  tls: []
 
 # No autoscaling in dev
 autoscaling:

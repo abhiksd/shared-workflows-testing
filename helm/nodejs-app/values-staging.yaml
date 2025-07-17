@@ -68,10 +68,6 @@ ingress:
     nginx.ingress.kubernetes.io/rate-limit: "100"
   hosts:
     - host: nodejs-app-staging.company.com
-      paths:
-        - path: /
-          pathType: Prefix
-  tls: []
 
 # Enable autoscaling for staging
 autoscaling:

@@ -83,10 +83,6 @@ ingress:
       }
   hosts:
     - host: nodejs-app.company.com
-      paths:
-        - path: /
-          pathType: Prefix
-  tls: []
 
 # Production autoscaling
 autoscaling:
