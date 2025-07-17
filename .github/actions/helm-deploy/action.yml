@@ -29,6 +29,15 @@ inputs:
   aks_resource_group:
     description: 'AKS resource group'
     required: true
+  azure_tenant_id:
+    description: 'Azure Tenant ID for Key Vault'
+    required: false
+  azure_client_id:
+    description: 'Azure Client ID (Managed Identity) for Key Vault'
+    required: false
+  keyvault_name:
+    description: 'Azure Key Vault name'
+    required: false
 
 outputs:
   deployment_status:
@@ -82,30 +91,42 @@ runs:
         # Create runtime values file with dynamic values
         cat > ${RUNTIME_VALUES_FILE} << EOF
         # Runtime values for ${{ inputs.environment }} - Auto-generated
-        shared-app:
-          global:
-            environment: ${{ inputs.environment }}
-            applicationName: ${{ inputs.application_name }}
-            applicationType: ${{ inputs.application_type }}
-            
-          image:
-            repository: ${{ inputs.registry }}/${{ inputs.application_name }}
-            tag: ${{ inputs.image_tag }}
-            
-          nameOverride: ${{ inputs.application_name }}
-          fullnameOverride: ${{ inputs.application_name }}-${{ inputs.environment }}
+        global:
+          environment: ${{ inputs.environment }}
+          applicationName: ${{ inputs.application_name }}
+          applicationType: ${{ inputs.application_type }}
           
-          # Runtime environment variables
-          env:
-            - name: ENVIRONMENT
-              value: ${{ inputs.environment }}
-            - name: APPLICATION_NAME
-              value: ${{ inputs.application_name }}
-            - name: BUILD_VERSION
-              value: ${{ inputs.image_tag }}
-            - name: HELM_VERSION
-              value: ${{ inputs.helm_version }}
+        image:
+          repository: ${{ inputs.registry }}/${{ inputs.application_name }}
+          tag: ${{ inputs.image_tag }}
+          
+        nameOverride: ${{ inputs.application_name }}
+        fullnameOverride: ${{ inputs.application_name }}-${{ inputs.environment }}
+        
+        # Runtime environment variables
+        env:
+          - name: ENVIRONMENT
+            value: ${{ inputs.environment }}
+          - name: APPLICATION_NAME
+            value: ${{ inputs.application_name }}
+          - name: BUILD_VERSION
+            value: ${{ inputs.image_tag }}
+          - name: HELM_VERSION
+            value: ${{ inputs.helm_version }}
         EOF
+        
+        # Add Azure Key Vault configuration if provided
+        if [[ -n "${{ inputs.azure_tenant_id }}" && -n "${{ inputs.azure_client_id }}" && -n "${{ inputs.keyvault_name }}" ]]; then
+          cat >> ${RUNTIME_VALUES_FILE} << EOF
+        
+        # Azure Key Vault configuration - Injected by GitHub Actions
+        azureKeyVault:
+          tenantId: "${{ inputs.azure_tenant_id }}"
+          userAssignedIdentityID: "${{ inputs.azure_client_id }}"
+          keyvaultName: "${{ inputs.keyvault_name }}"
+        EOF
+          echo "✅ Azure Key Vault configuration added to runtime values"
+        fi
         
         echo "values_file=${VALUES_FILE}" >> $GITHUB_OUTPUT
         echo "runtime_values_file=${RUNTIME_VALUES_FILE}" >> $GITHUB_OUTPUT

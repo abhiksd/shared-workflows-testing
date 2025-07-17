@@ -48,6 +48,8 @@ jobs:
     secrets:
       ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
       KEYVAULT_NAME: ${{ secrets.KEYVAULT_NAME }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       # Environment-specific AKS secrets
       AKS_CLUSTER_NAME_DEV: ${{ secrets.AKS_CLUSTER_NAME_DEV }}
       AKS_RESOURCE_GROUP_DEV: ${{ secrets.AKS_RESOURCE_GROUP_DEV }}

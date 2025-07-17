@@ -132,3 +132,32 @@ tolerations: []
 # Node selector for production nodes
 nodeSelector:
   environment: production
+
+# Azure Key Vault configuration for production
+azureKeyVault:
+  enabled: true
+  keyvaultName: "nodejs-app-prod-kv"
+  tenantId: ""  # Will be provided by GitHub Actions
+  userAssignedIdentityID: ""  # Will be provided by GitHub Actions
+  mountPath: "/mnt/secrets-store"
+  secrets:
+    - objectName: "db-connection-string"
+      objectAlias: "db-connection-string"
+    - objectName: "api-key"
+      objectAlias: "api-key"
+    - objectName: "session-secret"
+      objectAlias: "session-secret"
+    - objectName: "redis-url"
+      objectAlias: "redis-url"
+  secretObjects:
+    - secretName: "app-secrets"
+      type: "Opaque"
+      data:
+        - objectName: "db-connection-string"
+          key: "db-connection-string"
+        - objectName: "api-key"
+          key: "api-key"
+        - objectName: "session-secret"
+          key: "session-secret"
+        - objectName: "redis-url"
+          key: "redis-url"

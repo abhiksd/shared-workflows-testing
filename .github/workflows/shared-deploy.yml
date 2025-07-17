@@ -42,6 +42,12 @@ on:
       KEYVAULT_NAME:
         description: 'Azure Key Vault name'
         required: true
+      AZURE_TENANT_ID:
+        description: 'Azure Tenant ID for Key Vault access'
+        required: true
+      AZURE_CLIENT_ID:
+        description: 'Azure Client ID (Managed Identity) for Key Vault access'
+        required: true
       # Environment-specific AKS secrets
       AKS_CLUSTER_NAME_DEV:
         description: 'AKS cluster name for dev environment'
@@ -274,6 +280,9 @@ jobs:
           registry: ${{ env.REGISTRY }}
           aks_cluster_name: ${{ needs.validate-environment.outputs.aks_cluster_name }}
           aks_resource_group: ${{ needs.validate-environment.outputs.aks_resource_group }}
+          azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
+          keyvault_name: ${{ secrets.KEYVAULT_NAME }}
 
   create_release:
     runs-on: ubuntu-latest
