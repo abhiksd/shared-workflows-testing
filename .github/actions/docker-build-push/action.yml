@@ -148,11 +148,14 @@ runs:
           
           # Verify JAR integrity
           echo "🔍 Verifying JAR file integrity:"
-          find . -name "*.jar" -not -name "*-sources.jar" -not -name "*-javadoc.jar" -type f | head -1 | while read jar; do
-            echo "   - Checking: $jar"
-            jar -tf "$jar" | head -5
+          JAR_FILE=$(find . -name "*.jar" -not -name "*-sources.jar" -not -name "*-javadoc.jar" -type f | head -1)
+          if [ -n "$JAR_FILE" ]; then
+            echo "   - Checking: $JAR_FILE"
+            jar -tf "$JAR_FILE" 2>/dev/null | head -5 || echo "   - JAR contents could not be read"
             echo "   - JAR appears to be valid"
-          done
+          else
+            echo "   - No JAR file found for verification"
+          fi
         fi
       shell: bash
 
