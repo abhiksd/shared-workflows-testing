@@ -21,10 +21,13 @@ inputs:
     description: 'Container registry'
     required: true
   azure_tenant_id:
-    description: 'Azure Tenant ID for Managed Identity authentication'
+    description: 'Azure Tenant ID for OIDC authentication'
     required: true
   azure_client_id:
-    description: 'Azure Client ID for Managed Identity authentication'
+    description: 'Azure Client ID (App Registration) for OIDC authentication'
+    required: true
+  azure_subscription_id:
+    description: 'Azure Subscription ID for OIDC authentication'
     required: true
 
 outputs:
@@ -38,24 +41,25 @@ outputs:
 runs:
   using: 'composite'
   steps:
-    - name: Azure Login with Managed Identity
-      uses: azure/login@v1
+    - name: Azure Login with OIDC
+      uses: azure/login@v2
       with:
-        auth-type: IDENTITY
-        tenant-id: ${{ inputs.azure_tenant_id }}
         client-id: ${{ inputs.azure_client_id }}
+        tenant-id: ${{ inputs.azure_tenant_id }}
+        subscription-id: ${{ inputs.azure_subscription_id }}
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
       with:
         platforms: linux/amd64,linux/arm64
 
-    - name: Login to Azure Container Registry with Managed Identity
+    - name: Login to Azure Container Registry
       run: |
         # Get ACR login server name from the registry URL
         ACR_NAME=$(echo "${{ inputs.registry }}" | cut -d'.' -f1)
+        echo "Logging into ACR: $ACR_NAME"
         
-        # Login to ACR using managed identity
+        # Login to ACR using OIDC authenticated Azure CLI
         az acr login --name ${ACR_NAME}
         
         echo "Successfully authenticated to ACR: ${{ inputs.registry }}"
