@@ -154,11 +154,32 @@ jobs:
               ;;
           esac
           
+          # Debug output
+          echo "📊 Environment validation results:"
+          echo "   - Should deploy: $SHOULD_DEPLOY"
+          echo "   - Target environment: $TARGET_ENV"
+          echo "   - AKS cluster name: $AKS_CLUSTER"
+          echo "   - AKS resource group: $AKS_RG"
+          
+          # Validate that secrets are available
+          if [ "$SHOULD_DEPLOY" == "true" ]; then
+            if [ -z "$AKS_CLUSTER" ]; then
+              echo "❌ ERROR: AKS cluster name is empty for environment $TARGET_ENV"
+              echo "Check that AKS_CLUSTER_NAME_${TARGET_ENV^^} secret is set"
+              exit 1
+            fi
+            if [ -z "$AKS_RG" ]; then
+              echo "❌ ERROR: AKS resource group is empty for environment $TARGET_ENV"
+              echo "Check that AKS_RESOURCE_GROUP_${TARGET_ENV^^} secret is set"
+              exit 1
+            fi
+          fi
+          
           echo "should_deploy=$SHOULD_DEPLOY" >> $GITHUB_OUTPUT
           echo "target_environment=$TARGET_ENV" >> $GITHUB_OUTPUT
           echo "aks_cluster_name=$AKS_CLUSTER" >> $GITHUB_OUTPUT
           echo "aks_resource_group=$AKS_RG" >> $GITHUB_OUTPUT
-          echo "Final decision: should_deploy=$SHOULD_DEPLOY, target_environment=$TARGET_ENV"
+          echo "✅ Environment validation completed successfully"
 
   setup:
     runs-on: ubuntu-latest
