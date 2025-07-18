@@ -31,10 +31,10 @@ A simple Spring Boot REST API application built with Java 21 and packaged in a D
 
 ```bash
 # Build the application
-./mvnw clean package
+mvn clean package
 
 # Run the application
-./mvnw spring-boot:run
+mvn spring-boot:run
 ```
 
 The application will start on `http://localhost:8080`
@@ -42,7 +42,7 @@ The application will start on `http://localhost:8080`
 ### Run Tests
 
 ```bash
-./mvnw test
+mvn test
 ```
 
 ## Docker

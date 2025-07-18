@@ -1,9 +1,6 @@
 # Source code (not needed as JAR is pre-built)
 src/
 pom.xml
-mvnw
-mvnw.cmd
-.mvn/
 
 # Maven build directory (except for JARs)
 target/

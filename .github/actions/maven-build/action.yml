@@ -60,28 +60,24 @@ runs:
       working-directory: ${{ inputs.build_context }}
       run: |
         # Extract version from pom.xml
-        VERSION=$(./mvnw help:evaluate -Dexpression=project.version -q -DforceStdout)
+        VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
         echo "build_version=${VERSION}" >> $GITHUB_OUTPUT
         echo "Maven project version: ${VERSION}"
       shell: bash
 
-    - name: Validate Maven wrapper
+    - name: Validate Maven installation
       working-directory: ${{ inputs.build_context }}
       run: |
-        # Verify Maven wrapper checksum for security
-        if [ -f ".mvn/wrapper/maven-wrapper.properties" ]; then
-          echo "Validating Maven wrapper..."
-          ./mvnw --version
-        else
-          echo "Warning: Maven wrapper properties not found"
-        fi
+        # Verify Maven installation
+        echo "Validating Maven installation..."
+        mvn --version
       shell: bash
 
     - name: Download dependencies
       working-directory: ${{ inputs.build_context }}
       run: |
         echo "Downloading Maven dependencies..."
-        ./mvnw dependency:resolve dependency:resolve-sources
+        mvn dependency:resolve dependency:resolve-sources
       shell: bash
 
     - name: Run tests
@@ -89,7 +85,7 @@ runs:
       working-directory: ${{ inputs.build_context }}
       run: |
         echo "Running Maven tests..."
-        ./mvnw test
+        mvn test
       shell: bash
 
     - name: Build application
@@ -104,7 +100,7 @@ runs:
           BUILD_ARGS="${BUILD_ARGS} -DskipTests"
         fi
         
-        ./mvnw ${BUILD_ARGS}
+        mvn ${BUILD_ARGS}
         
         # Find the built JAR file
         JAR_FILE=$(find target -name "*.jar" -not -name "*-sources.jar" -not -name "*-javadoc.jar" | head -1)
@@ -127,7 +123,7 @@ runs:
       run: |
         echo "Running Maven dependency security scan..."
         # Check for known vulnerabilities in dependencies
-        ./mvnw org.owasp:dependency-check-maven:check -DfailBuildOnCVSS=7 || echo "Security scan completed with warnings"
+        mvn org.owasp:dependency-check-maven:check -DfailBuildOnCVSS=7 || echo "Security scan completed with warnings"
       shell: bash
       continue-on-error: true
 
