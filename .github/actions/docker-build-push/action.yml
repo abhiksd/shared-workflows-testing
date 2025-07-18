@@ -30,7 +30,7 @@ inputs:
     description: 'Azure Subscription ID for OIDC authentication'
     required: true
   jar_artifact_name:
-    description: 'Name of the JAR artifact to download (for Java applications)'
+    description: 'Name of the JAR artifact (for debugging - artifacts should be downloaded by calling workflow)'
     required: false
 
 outputs:
@@ -51,12 +51,8 @@ runs:
         tenant-id: ${{ inputs.azure_tenant_id }}
         subscription-id: ${{ inputs.azure_subscription_id }}
 
-    - name: Download JAR artifact
-      if: inputs.application_type == 'java-springboot' && inputs.jar_artifact_name != ''
-      uses: actions/download-artifact@v4
-      with:
-        name: ${{ inputs.jar_artifact_name }}
-        path: ${{ inputs.build_context }}
+    # JAR artifacts are downloaded by the calling workflow
+    # This action expects artifacts to already be present in build_context
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -132,15 +128,17 @@ runs:
         if [ "$JAR_COUNT" -eq 0 ]; then
           echo "❌ ERROR: No executable JAR files found in build context!"
           echo "📋 This usually means:"
-          echo "   1. Maven build artifacts were not uploaded properly"
-          echo "   2. JAR artifact download failed"
+          echo "   1. Maven build failed or artifacts were not uploaded"
+          echo "   2. Artifact download failed in the calling workflow"
           echo "   3. Wrong build context path specified"
+          echo "   4. JAR artifact name mismatch between build and download"
           echo ""
           echo "🔍 Debugging information:"
           echo "   - Build context: ${{ inputs.build_context }}"
-          echo "   - JAR artifact name: ${{ inputs.jar_artifact_name }}"
+          echo "   - Expected JAR artifact: ${{ inputs.jar_artifact_name }}"
           echo "   - Current working directory: $(pwd)"
           echo ""
+          echo "💡 Check the 'Download Maven build artifacts' step in your workflow"
           exit 1
         else
           echo "✅ Found $JAR_COUNT executable JAR file(s) for Docker build:"
