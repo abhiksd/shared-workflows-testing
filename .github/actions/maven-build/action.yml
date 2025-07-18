@@ -48,6 +48,11 @@ runs:
         java-version: ${{ inputs.java_version }}
         distribution: 'temurin'
 
+    - name: Set up Maven
+      uses: stCarolas/setup-maven@v5
+      with:
+        maven-version: 3.9.4
+
     - name: Cache Maven dependencies
       uses: actions/cache@v4
       with:
@@ -58,22 +63,34 @@ runs:
         restore-keys: |
           ${{ runner.os }}-maven-
 
-    - name: Extract version from POM
-      id: version
-      working-directory: ${{ inputs.build_context }}
-      run: |
-        # Extract version from pom.xml
-        VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-        echo "build_version=${VERSION}" >> $GITHUB_OUTPUT
-        echo "Maven project version: ${VERSION}"
-      shell: bash
-
     - name: Validate Maven installation
       working-directory: ${{ inputs.build_context }}
       run: |
         # Verify Maven installation
         echo "Validating Maven installation..."
         mvn --version
+        echo "Validating POM file..."
+        mvn validate -q
+      shell: bash
+
+    - name: Extract version from POM
+      id: version
+      working-directory: ${{ inputs.build_context }}
+      run: |
+        # Extract version from pom.xml with error handling
+        echo "Extracting version from POM..."
+        if ! VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout 2>/dev/null); then
+          echo "❌ Failed to extract version using Maven. Falling back to XML parsing..."
+          VERSION=$(xmllint --xpath "//*[local-name()='project']/*[local-name()='version']/text()" pom.xml 2>/dev/null || echo "unknown")
+        fi
+        
+        if [ -z "$VERSION" ] || [ "$VERSION" = "unknown" ]; then
+          echo "❌ Could not determine project version"
+          exit 1
+        fi
+        
+        echo "build_version=${VERSION}" >> $GITHUB_OUTPUT
+        echo "✅ Maven project version: ${VERSION}"
       shell: bash
 
     - name: Download dependencies
