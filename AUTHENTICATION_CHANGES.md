@@ -39,10 +39,12 @@ CHECKMARX_CLIENT_SECRET: 'client-secret-123'    # OAuth2 client secret
 
 3. **Files Modified:**
    - `.github/actions/checkmarx-scan/action.yml`
-   - `.github/actions/security-scan/action.yml`
    - `.github/workflows/shared-deploy.yml`
    - `.github/workflows/pr-security-check.yml`
    - `SECURITY_SCANNING_GUIDE.md`
+
+4. **Files Removed:**
+   - `.github/actions/security-scan/action.yml` (replaced with direct calls to individual actions)
 
 ## SonarQube Authentication
 

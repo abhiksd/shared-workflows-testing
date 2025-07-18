@@ -11,12 +11,15 @@ This guide documents the complete security scanning setup with SonarQube and Che
 - **Checkmarx SAST**: Static Application Security Testing
 - **Checkmarx SCA**: Software Composition Analysis
 - **Checkmarx KICS**: Infrastructure as Code Security
-- **OWASP Dependency Check**: Vulnerability scanning
-- **TruffleHog**: Secret detection
+
+### **Architecture**
+- **Simplified Design**: Direct integration of SonarQube and Checkmarx composite actions
+- **Parallel Execution**: SonarQube and Checkmarx scans run in parallel for faster pipeline execution
+- **Independent Control**: Each scanner can be enabled/disabled independently
 
 ### **Deployment Integration**
 - **PR Security Checks**: Mandatory security scans before merge
-- **Deployment Gating**: Security scans must pass before deployment
+- **Deployment Gating**: Both SonarQube and Checkmarx scans must pass before deployment
 - **Configurable Thresholds**: Customizable security requirements per environment
 
 ## 🔧 **CONFIGURATION VARIABLES**
