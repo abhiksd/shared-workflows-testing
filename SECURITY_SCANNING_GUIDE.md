@@ -48,7 +48,7 @@ SONAR_PR_MAINTAINABILITY_RATING: '2'    # Max maintainability rating for PRs
 # Core Checkmarx Settings
 CHECKMARX_ENABLED: 'true'                        # Enable/disable Checkmarx scanning
 CHECKMARX_URL: 'https://checkmarx.company.com'   # Checkmarx server URL
-CHECKMARX_TENANT: 'company-tenant'               # Checkmarx tenant
+CX_TENANT: 'company-tenant'                      # Checkmarx tenant for OAuth2 authentication
 
 # Scan Configuration
 CHECKMARX_SCAN_TYPES: 'sca,sast,kics'           # Scan types (comma-separated)
@@ -87,9 +87,9 @@ SONAR_TOKEN: 'squ_1234567890abcdef'             # SonarQube authentication token
 
 #### **Checkmarx Secrets**
 ```yaml
-CHECKMARX_USERNAME: 'service-account'           # Checkmarx service account
-CHECKMARX_PASSWORD: 'secure-password'           # Checkmarx password
-CHECKMARX_CLIENT_SECRET: 'client-secret-123'    # Checkmarx client secret (if using OAuth)
+CX_TENANT: 'company-tenant'                     # Checkmarx tenant for OAuth2 authentication
+CHECKMARX_CLIENT_ID: 'client-id-123'            # Checkmarx OAuth2 client ID
+CHECKMARX_CLIENT_SECRET: 'client-secret-123'    # Checkmarx OAuth2 client secret
 ```
 
 ## 📊 **SECURITY SCAN TYPES EXPLAINED**
@@ -264,13 +264,10 @@ SONAR_TOKEN: 'squ_***'                       # Valid token with project permissi
 
 #### **Checkmarx Authentication Issues**
 ```yaml
-# For username/password auth
-CHECKMARX_USERNAME: 'service-account'
-CHECKMARX_PASSWORD: 'correct-password'
-
-# For OAuth client credentials
-CHECKMARX_CLIENT_SECRET: 'client-secret-123'
-CHECKMARX_TENANT: 'correct-tenant-name'
+# For OAuth2 client credentials authentication
+CX_TENANT: 'correct-tenant-name'
+CHECKMARX_CLIENT_ID: 'correct-client-id'
+CHECKMARX_CLIENT_SECRET: 'correct-client-secret'
 ```
 
 #### **Threshold Failures**

@@ -261,13 +261,12 @@ jobs:
           sonar_reliability_rating: ${{ vars.SONAR_RELIABILITY_RATING || '1' }}
           sonar_security_rating: ${{ vars.SONAR_SECURITY_RATING || '1' }}
           sonar_maintainability_rating: ${{ vars.SONAR_MAINTAINABILITY_RATING || '2' }}
-          # Checkmarx Configuration
-          checkmarx_enabled: ${{ vars.CHECKMARX_ENABLED || 'true' }}
-          checkmarx_url: ${{ vars.CHECKMARX_URL }}
-          checkmarx_username: ${{ secrets.CHECKMARX_USERNAME }}
-          checkmarx_password: ${{ secrets.CHECKMARX_PASSWORD }}
-          checkmarx_client_secret: ${{ secrets.CHECKMARX_CLIENT_SECRET }}
-          checkmarx_tenant: ${{ vars.CHECKMARX_TENANT }}
+                  # Checkmarx Configuration
+        checkmarx_enabled: ${{ vars.CHECKMARX_ENABLED || 'true' }}
+        checkmarx_url: ${{ vars.CHECKMARX_URL }}
+        cx_tenant: ${{ vars.CX_TENANT }}
+        checkmarx_client_id: ${{ secrets.CHECKMARX_CLIENT_ID }}
+        checkmarx_client_secret: ${{ secrets.CHECKMARX_CLIENT_SECRET }}
           checkmarx_scan_types: ${{ vars.CHECKMARX_SCAN_TYPES || 'sca,sast,kics' }}
           checkmarx_sast_preset: ${{ vars.CHECKMARX_SAST_PRESET || 'Checkmarx Default' }}
           checkmarx_sca_resolver: ${{ vars.CHECKMARX_SCA_RESOLVER || 'auto' }}

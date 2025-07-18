@@ -120,10 +120,9 @@ jobs:
           build_context: apps/java-app
           checkmarx_enabled: ${{ vars.CHECKMARX_ENABLED || 'true' }}
           checkmarx_url: ${{ vars.CHECKMARX_URL }}
-          checkmarx_username: ${{ secrets.CHECKMARX_USERNAME }}
-          checkmarx_password: ${{ secrets.CHECKMARX_PASSWORD }}
+          cx_tenant: ${{ vars.CX_TENANT }}
+          checkmarx_client_id: ${{ secrets.CHECKMARX_CLIENT_ID }}
           checkmarx_client_secret: ${{ secrets.CHECKMARX_CLIENT_SECRET }}
-          checkmarx_tenant: ${{ vars.CHECKMARX_TENANT }}
           checkmarx_scan_types: ${{ vars.CHECKMARX_PR_SCAN_TYPES || vars.CHECKMARX_SCAN_TYPES || 'sast,sca' }}
           checkmarx_sast_preset: ${{ vars.CHECKMARX_SAST_PRESET || 'Checkmarx Default' }}
           checkmarx_sca_resolver: ${{ vars.CHECKMARX_SCA_RESOLVER || 'auto' }}
@@ -205,10 +204,9 @@ jobs:
           build_context: apps/nodejs-app
           checkmarx_enabled: ${{ vars.CHECKMARX_ENABLED || 'true' }}
           checkmarx_url: ${{ vars.CHECKMARX_URL }}
-          checkmarx_username: ${{ secrets.CHECKMARX_USERNAME }}
-          checkmarx_password: ${{ secrets.CHECKMARX_PASSWORD }}
+          cx_tenant: ${{ vars.CX_TENANT }}
+          checkmarx_client_id: ${{ secrets.CHECKMARX_CLIENT_ID }}
           checkmarx_client_secret: ${{ secrets.CHECKMARX_CLIENT_SECRET }}
-          checkmarx_tenant: ${{ vars.CHECKMARX_TENANT }}
           checkmarx_scan_types: ${{ vars.CHECKMARX_PR_SCAN_TYPES || vars.CHECKMARX_SCAN_TYPES || 'sast,sca' }}
           checkmarx_sast_preset: ${{ vars.CHECKMARX_SAST_PRESET || 'Checkmarx Default' }}
           checkmarx_sca_resolver: ${{ vars.CHECKMARX_SCA_RESOLVER || 'auto' }}

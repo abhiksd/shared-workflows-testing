@@ -18,17 +18,14 @@ inputs:
   checkmarx_url:
     description: 'Checkmarx server URL'
     required: false
-  checkmarx_username:
-    description: 'Checkmarx username'
+  cx_tenant:
+    description: 'Checkmarx tenant for OAuth2 authentication'
     required: false
-  checkmarx_password:
-    description: 'Checkmarx password'
+  checkmarx_client_id:
+    description: 'Checkmarx OAuth2 client ID'
     required: false
   checkmarx_client_secret:
-    description: 'Checkmarx client secret'
-    required: false
-  checkmarx_tenant:
-    description: 'Checkmarx tenant'
+    description: 'Checkmarx OAuth2 client secret'
     required: false
   checkmarx_scan_types:
     description: 'Checkmarx scan types (comma-separated: sca,sast,kics)'
@@ -99,8 +96,8 @@ runs:
           exit 1
         fi
         
-        if [[ -z "${{ inputs.checkmarx_username }}" && -z "${{ inputs.checkmarx_client_secret }}" ]]; then
-          echo "❌ Either CHECKMARX_USERNAME/PASSWORD or CHECKMARX_CLIENT_SECRET is required"
+        if [[ -z "${{ inputs.cx_tenant }}" || -z "${{ inputs.checkmarx_client_id }}" || -z "${{ inputs.checkmarx_client_secret }}" ]]; then
+          echo "❌ CHECKMARX_TENANT, CHECKMARX_CLIENT_ID, and CHECKMARX_CLIENT_SECRET are required for OAuth2 authentication"
           exit 1
         fi
         
@@ -171,12 +168,30 @@ runs:
       run: |
         echo "🛡️ Starting Checkmarx SAST scan..."
         
-        # Run SAST scan
+        # Authenticate using OAuth2 and get access token
+        echo "🔐 Authenticating with Checkmarx using OAuth2..."
+        ACCESS_TOKEN=$(curl -s -X POST "${{ inputs.checkmarx_url }}/cxrestapi/auth/identity/connect/token" \
+          -H "Content-Type: application/x-www-form-urlencoded" \
+          -d "username=${{ inputs.checkmarx_client_id }}" \
+          -d "password=${{ inputs.checkmarx_client_secret }}" \
+          -d "grant_type=password" \
+          -d "scope=sast_rest_api" \
+          -d "client_id=resource_owner_client" \
+          -d "client_secret=014DF517-39D1-4453-B7B3-9930C563627C" | \
+          jq -r '.access_token // empty')
+        
+        if [[ -z "$ACCESS_TOKEN" ]]; then
+          echo "❌ Failed to obtain OAuth2 access token"
+          exit 1
+        fi
+        
+        echo "✅ Successfully authenticated with Checkmarx"
+        
+        # Run SAST scan using OAuth2 token
         ./CxConsolePlugin-*/runCxConsole.sh Scan \
           -v \
           -CxServer ${{ inputs.checkmarx_url }} \
-          -CxUser ${{ inputs.checkmarx_username }} \
-          -CxPassword ${{ inputs.checkmarx_password }} \
+          -CxToken "$ACCESS_TOKEN" \
           -ProjectName "${{ inputs.application_name }}-SAST-${{ steps.generate-scan-id.outputs.scan_id }}" \
           -preset "${{ inputs.checkmarx_sast_preset }}" \
           -LocationType folder \

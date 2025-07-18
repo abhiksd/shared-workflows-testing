@@ -57,17 +57,14 @@ inputs:
   checkmarx_url:
     description: 'Checkmarx server URL'
     required: false
-  checkmarx_username:
-    description: 'Checkmarx username'
+  cx_tenant:
+    description: 'Checkmarx tenant for OAuth2 authentication'
     required: false
-  checkmarx_password:
-    description: 'Checkmarx password'
+  checkmarx_client_id:
+    description: 'Checkmarx OAuth2 client ID'
     required: false
   checkmarx_client_secret:
-    description: 'Checkmarx client secret'
-    required: false
-  checkmarx_tenant:
-    description: 'Checkmarx tenant'
+    description: 'Checkmarx OAuth2 client secret'
     required: false
   checkmarx_scan_types:
     description: 'Checkmarx scan types (comma-separated: sca,sast,kics)'
@@ -177,10 +174,9 @@ runs:
         build_context: ${{ inputs.build_context }}
         checkmarx_enabled: ${{ inputs.checkmarx_enabled }}
         checkmarx_url: ${{ inputs.checkmarx_url }}
-        checkmarx_username: ${{ inputs.checkmarx_username }}
-        checkmarx_password: ${{ inputs.checkmarx_password }}
+        cx_tenant: ${{ inputs.cx_tenant }}
+        checkmarx_client_id: ${{ inputs.checkmarx_client_id }}
         checkmarx_client_secret: ${{ inputs.checkmarx_client_secret }}
-        checkmarx_tenant: ${{ inputs.checkmarx_tenant }}
         checkmarx_scan_types: ${{ inputs.checkmarx_scan_types }}
         checkmarx_sast_preset: ${{ inputs.checkmarx_sast_preset }}
         checkmarx_sca_resolver: ${{ inputs.checkmarx_sca_resolver }}
