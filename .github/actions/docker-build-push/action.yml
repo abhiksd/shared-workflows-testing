@@ -29,6 +29,9 @@ inputs:
   azure_subscription_id:
     description: 'Azure Subscription ID for OIDC authentication'
     required: true
+  jar_artifact_name:
+    description: 'Name of the JAR artifact to download (for Java applications)'
+    required: false
 
 outputs:
   image_digest:
@@ -47,6 +50,13 @@ runs:
         client-id: ${{ inputs.azure_client_id }}
         tenant-id: ${{ inputs.azure_tenant_id }}
         subscription-id: ${{ inputs.azure_subscription_id }}
+
+    - name: Download JAR artifact
+      if: inputs.application_type == 'java-springboot' && inputs.jar_artifact_name != ''
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs.jar_artifact_name }}
+        path: ${{ inputs.build_context }}
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -100,24 +110,49 @@ runs:
         echo "cache_to=${CACHE_TO}" >> $GITHUB_OUTPUT
       shell: bash
 
-    - name: Prepare build context for Java applications
+    - name: Verify build artifacts for Java applications
       if: inputs.application_type == 'java-springboot'
       run: |
-        echo "Preparing Java application build context..."
+        echo "🔍 Verifying Java application build artifacts..."
         cd "${{ inputs.build_context }}"
         
-        # List available JAR files
-        echo "Available JAR files in build context:"
-        find . -name "*.jar" -type f 2>/dev/null || echo "No JAR files found yet"
+        # Show current directory contents
+        echo "📁 Current directory contents:"
+        ls -la
         
-        # Ensure we have a JAR file for Docker build
+        # List all JAR files recursively
+        echo "📦 Available JAR files in build context:"
+        find . -name "*.jar" -type f 2>/dev/null | while read jar; do
+          echo "  - $jar ($(du -h "$jar" | cut -f1))"
+        done
+        
+        # Count executable JAR files (excluding sources and javadoc)
         JAR_COUNT=$(find . -name "*.jar" -not -name "*-sources.jar" -not -name "*-javadoc.jar" -type f 2>/dev/null | wc -l)
+        
         if [ "$JAR_COUNT" -eq 0 ]; then
-          echo "Warning: No JAR files found in build context. Make sure Maven build artifacts were downloaded correctly."
-          ls -la
+          echo "❌ ERROR: No executable JAR files found in build context!"
+          echo "📋 This usually means:"
+          echo "   1. Maven build artifacts were not uploaded properly"
+          echo "   2. JAR artifact download failed"
+          echo "   3. Wrong build context path specified"
+          echo ""
+          echo "🔍 Debugging information:"
+          echo "   - Build context: ${{ inputs.build_context }}"
+          echo "   - JAR artifact name: ${{ inputs.jar_artifact_name }}"
+          echo "   - Current working directory: $(pwd)"
+          echo ""
+          exit 1
         else
-          echo "Found $JAR_COUNT JAR file(s) for Docker build"
-          find . -name "*.jar" -not -name "*-sources.jar" -not -name "*-javadoc.jar" -type f -exec ls -la {} \;
+          echo "✅ Found $JAR_COUNT executable JAR file(s) for Docker build:"
+          find . -name "*.jar" -not -name "*-sources.jar" -not -name "*-javadoc.jar" -type f -exec ls -lh {} \;
+          
+          # Verify JAR integrity
+          echo "🔍 Verifying JAR file integrity:"
+          find . -name "*.jar" -not -name "*-sources.jar" -not -name "*-javadoc.jar" -type f | head -1 | while read jar; do
+            echo "   - Checking: $jar"
+            jar -tf "$jar" | head -5
+            echo "   - JAR appears to be valid"
+          done
         fi
       shell: bash
 

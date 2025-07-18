@@ -32,6 +32,9 @@ outputs:
   artifact_name:
     description: 'Name of the uploaded artifact'
     value: ${{ steps.upload.outputs.artifact_name }}
+  jar_artifact:
+    description: 'Name of the JAR artifact (alias for artifact_name)'
+    value: ${{ steps.upload.outputs.artifact_name }}
   build_version:
     description: 'Build version from Maven'
     value: ${{ steps.version.outputs.build_version }}
@@ -143,7 +146,7 @@ runs:
       continue-on-error: true
 
     - name: Upload build artifacts
-      id: upload
+      id: upload-artifact
       if: inputs.upload_artifacts == 'true'
       uses: actions/upload-artifact@v4
       with:
@@ -154,18 +157,35 @@ runs:
         retention-days: 7
 
     - name: Set artifact output
+      id: upload
       if: inputs.upload_artifacts == 'true'
       run: |
         echo "artifact_name=${{ inputs.application_name }}-jar" >> $GITHUB_OUTPUT
+        echo "✅ JAR artifact uploaded: ${{ inputs.application_name }}-jar"
       shell: bash
 
     - name: Build summary
       run: |
-        echo "## Maven Build Summary" >> $GITHUB_STEP_SUMMARY
+        echo "## 📦 Maven Build Summary" >> $GITHUB_STEP_SUMMARY
         echo "- **Application**: ${{ inputs.application_name }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Java Version**: ${{ inputs.java_version }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Build Version**: ${{ steps.version.outputs.build_version }}" >> $GITHUB_STEP_SUMMARY
         echo "- **JAR Path**: ${{ steps.build.outputs.jar_path }}" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ inputs.upload_artifacts }}" == "true" ]; then
+          echo "- **Artifact Name**: ${{ steps.upload.outputs.artifact_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Artifact Status**: ✅ Uploaded successfully" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "- **Artifact Status**: ⏭️ Upload skipped" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🔍 JAR File Details" >> $GITHUB_STEP_SUMMARY
+        if [ -f "${{ steps.build.outputs.jar_path }}" ]; then
+          JAR_SIZE=$(du -h "${{ steps.build.outputs.jar_path }}" | cut -f1)
+          echo "- **Size**: $JAR_SIZE" >> $GITHUB_STEP_SUMMARY
+          echo "- **Type**: Executable JAR" >> $GITHUB_STEP_SUMMARY
+        fi
         echo "- **Tests Run**: ${{ inputs.run_tests }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Maven Args**: ${{ inputs.maven_args }}" >> $GITHUB_STEP_SUMMARY
       shell: bash
