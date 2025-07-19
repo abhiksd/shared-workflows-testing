@@ -120,8 +120,26 @@ Before using these workflows, ensure you have set up OIDC authentication between
 1. **Create Azure AD App Registration**
 2. **Configure Federated Credentials** for your GitHub repository
 3. **Assign appropriate Azure permissions** to the service principal
+4. **Configure AKS with Azure AD integration** for identity-based authentication
 
 For detailed setup instructions, see: [Azure Login Action Documentation](https://github.com/Azure/login#configure-a-service-principal-with-a-federated-credential-to-use-oidc-based-authentication)
+
+#### **AKS Azure AD Integration Setup**
+The workflows use identity-based authentication with AKS, which requires:
+
+1. **AKS cluster with Azure AD integration enabled**
+2. **Service principal assigned appropriate RBAC roles** on the AKS cluster
+3. **kubelogin configured** for Azure AD authentication (automatically handled by the workflow)
+
+Required AKS permissions for the service principal:
+- `Azure Kubernetes Service Cluster User Role` (minimum)
+- `Azure Kubernetes Service RBAC Cluster Admin` (for admin operations)
+- Custom RBAC roles as needed for specific namespaces
+
+#### **Authentication Flow**
+```
+GitHub OIDC Token → Azure Login → AKS Identity-based Auth → kubectl with kubelogin
+```
 
 ### 2. Repository Secrets
 Set these secrets in your GitHub repository settings:
@@ -327,6 +345,26 @@ permissions:
 #### 4. Environment Detection Issues
 **Error**: Auto environment detection failed
 **Solution**: Check branch naming and deployment rules
+
+#### 5. AKS Identity-based Authentication Issues
+**Error**: `To sign in, use a web browser to open the page https://microsoft.com/devicelogin`
+**Solution**: This indicates the workflow is trying to use device login instead of identity-based auth. Ensure:
+- AKS cluster has Azure AD integration enabled
+- Service principal has appropriate RBAC roles on AKS cluster
+- `admin: false` and `use-kubelogin: true` are set in aks-set-context action
+
+**Error**: `Failed to connect to AKS cluster or Azure AD authentication failed`
+**Solution**: 
+- Verify AKS cluster is running and accessible
+- Check service principal has `Azure Kubernetes Service Cluster User Role`
+- Ensure Azure AD integration is properly configured on AKS cluster
+- Verify network connectivity to the cluster
+
+**Error**: `kubectl auth can-i get pods` fails
+**Solution**: 
+- Check RBAC permissions for the service principal on AKS
+- Verify the service principal is assigned to appropriate Azure AD groups
+- Ensure namespace-level permissions if using namespace-specific RBAC
 
 ### Debug Information
 

@@ -164,6 +164,31 @@ runs:
       with:
         version: '3.12.0'
 
+    - name: Setup kubelogin for Azure AD authentication
+      run: |
+        echo "🔧 Setting up kubelogin for Azure AD authentication..."
+        echo "========================================================"
+        
+        # Install kubelogin if not already available
+        if ! command -v kubelogin &> /dev/null; then
+          echo "   📦 Installing kubelogin..."
+          # Download and install kubelogin
+          KUBELOGIN_VERSION="v0.0.34"
+          curl -LO "https://github.com/Azure/kubelogin/releases/download/${KUBELOGIN_VERSION}/kubelogin-linux-amd64.zip"
+          unzip kubelogin-linux-amd64.zip
+          sudo mv bin/linux_amd64/kubelogin /usr/local/bin/
+          rm -rf kubelogin-linux-amd64.zip bin/
+          chmod +x /usr/local/bin/kubelogin
+        else
+          echo "   ✅ kubelogin already installed"
+        fi
+        
+        # Verify kubelogin installation
+        kubelogin version
+        echo "✅ kubelogin setup completed"
+        echo ""
+      shell: bash
+
     - name: Connect to AKS cluster
       run: |
         echo "🔐 Establishing AKS cluster connection..."
@@ -171,24 +196,44 @@ runs:
         echo "   - Target Cluster: ${{ inputs.aks_cluster_name }}"
         echo "   - Resource Group: ${{ inputs.aks_resource_group }}"
         echo "   - Environment: ${{ inputs.environment }}"
+        echo "   - Authentication: Using OIDC identity-based auth"
         echo ""
       shell: bash
 
-    - name: Get AKS credentials
+    - name: Get AKS credentials using identity-based authentication
       uses: azure/aks-set-context@v3
       with:
         resource-group: ${{ inputs.aks_resource_group }}
         cluster-name: ${{ inputs.aks_cluster_name }}
+        admin: false  # Use identity-based auth instead of admin credentials
+        use-kubelogin: true  # Use kubelogin for Azure AD authentication
 
-    - name: Verify cluster connectivity and log cluster info
+    - name: Verify cluster connectivity and Azure AD authentication
       run: |
-        echo "🔗 Verifying AKS cluster connectivity..."
+        echo "🔗 Verifying AKS cluster connectivity and Azure AD authentication..."
         echo "========================================================"
         
-        # Test cluster connection
-        if kubectl cluster-info; then
+        # Check current kubectl context
+        echo "   📋 Current kubectl context:"
+        kubectl config current-context || echo "   ⚠️  No current context set"
+        
+        echo ""
+        echo "   🔑 Verifying Azure AD authentication..."
+        
+        # Test Azure AD token with a simple kubectl command
+        if kubectl auth can-i get pods --namespace=default; then
+          echo "   ✅ Azure AD authentication successful"
+        else
+          echo "   ⚠️  Azure AD authentication may need refresh, attempting cluster-info..."
+        fi
+        
+        echo ""
+        echo "   🌐 Testing cluster connectivity..."
+        
+        # Test cluster connection with timeout
+        if timeout 30s kubectl cluster-info; then
           echo ""
-          echo "✅ Successfully connected to AKS cluster"
+          echo "✅ Successfully connected to AKS cluster with Azure AD authentication"
           
           # Log additional cluster information
           echo ""
@@ -201,13 +246,28 @@ runs:
           kubectl config current-context
           
           echo ""
+          echo "   - Authentication Info:"
+          kubectl config view --minify -o jsonpath='{.users[0].user}' | jq '.' 2>/dev/null || echo "      Using Azure AD authentication"
+          
+          echo ""
           echo "   - Available Namespaces:"
           kubectl get namespaces --no-headers | wc -l | xargs printf "      Total: %s namespaces\n"
           
         else
           echo ""
-          echo "❌ Failed to connect to AKS cluster"
-          echo "   Please verify cluster credentials and network connectivity"
+          echo "❌ Failed to connect to AKS cluster or Azure AD authentication failed"
+          echo "   Please verify:"
+          echo "   - AKS cluster is running and accessible"
+          echo "   - Azure AD authentication is properly configured"
+          echo "   - Service principal has appropriate permissions"
+          echo "   - Network connectivity to the cluster"
+          echo ""
+          echo "   🔍 Debug information:"
+          echo "   - kubectl config:"
+          kubectl config view --minify || true
+          echo ""
+          echo "   - Azure CLI status:"
+          az account show || true
           exit 1
         fi
         echo ""
