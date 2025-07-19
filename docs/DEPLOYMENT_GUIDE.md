@@ -516,10 +516,27 @@ kubectl rollout undo deployment/java-app --to-revision=3 -n production
 
 #### Using GitHub Actions
 ```bash
-# Trigger rollback workflow
+# Trigger rollback workflow with different strategies
+
+# Rollback to previous version (default)
 gh workflow run rollback-deployment.yml \
   -f environment=production \
+  -f application_name=java-app \
+  -f rollback_strategy=previous-version
+
+# Rollback to specific version
+gh workflow run rollback-deployment.yml \
+  -f environment=production \
+  -f application_name=java-app \
+  -f rollback_strategy=specific-version \
   -f target_version=1.2.2
+
+# Rollback to specific Helm revision
+gh workflow run rollback-deployment.yml \
+  -f environment=production \
+  -f application_name=java-app \
+  -f rollback_strategy=specific-revision \
+  -f target_revision=3
 ```
 
 ### Post-Rollback Verification

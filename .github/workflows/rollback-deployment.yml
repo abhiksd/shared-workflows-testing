@@ -1,0 +1,423 @@
+name: Rollback Deployment
+
+permissions:
+  id-token: write
+  contents: read
+  actions: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to rollback'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - production
+      application_name:
+        description: 'Application name to rollback'
+        required: true
+        type: string
+        default: 'java-app'
+      rollback_strategy:
+        description: 'Rollback strategy'
+        required: true
+        type: choice
+        options:
+          - previous-version
+          - specific-version
+          - specific-revision
+        default: 'previous-version'
+      target_version:
+        description: 'Target version (for specific-version strategy)'
+        required: false
+        type: string
+      target_revision:
+        description: 'Target Helm revision (for specific-revision strategy)'
+        required: false
+        type: string
+      skip_health_check:
+        description: 'Skip health check after rollback'
+        required: false
+        type: boolean
+        default: false
+      force_rollback:
+        description: 'Force rollback even if current deployment is healthy'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  REGISTRY: ${{ secrets.ACR_LOGIN_SERVER }}
+  # Configure your AKS cluster names
+  AKS_CLUSTER_NAME_DEV: "aks-platform-dev"
+  AKS_RESOURCE_GROUP_DEV: "rg-platform-dev"
+  AKS_CLUSTER_NAME_STAGING: "aks-platform-staging"
+  AKS_RESOURCE_GROUP_STAGING: "rg-platform-staging"
+  AKS_CLUSTER_NAME_PROD: "aks-platform-prod"
+  AKS_RESOURCE_GROUP_PROD: "rg-platform-prod"
+
+jobs:
+  validate-rollback:
+    runs-on: ubuntu-latest
+    outputs:
+      should_rollback: ${{ steps.validation.outputs.should_rollback }}
+      target_environment: ${{ steps.validation.outputs.target_environment }}
+      aks_cluster_name: ${{ steps.validation.outputs.aks_cluster_name }}
+      aks_resource_group: ${{ steps.validation.outputs.aks_resource_group }}
+      rollback_target: ${{ steps.validation.outputs.rollback_target }}
+      namespace: ${{ steps.validation.outputs.namespace }}
+    steps:
+      - name: Validate rollback request
+        id: validation
+        run: |
+          ENVIRONMENT="${{ github.event.inputs.environment }}"
+          APPLICATION="${{ github.event.inputs.application_name }}"
+          STRATEGY="${{ github.event.inputs.rollback_strategy }}"
+          
+          echo "🔍 Validating rollback request for $APPLICATION in $ENVIRONMENT"
+          
+          # Set cluster details based on environment
+          # NOTE: Update these values to match your actual AKS cluster names
+          case "$ENVIRONMENT" in
+            "dev")
+              AKS_CLUSTER="${AKS_CLUSTER_NAME_DEV:-aks-platform-dev}"
+              AKS_RG="${AKS_RESOURCE_GROUP_DEV:-rg-platform-dev}"
+              NAMESPACE="default"
+              ;;
+            "staging")
+              AKS_CLUSTER="${AKS_CLUSTER_NAME_STAGING:-aks-platform-staging}"
+              AKS_RG="${AKS_RESOURCE_GROUP_STAGING:-rg-platform-staging}"
+              NAMESPACE="default"
+              ;;
+            "production")
+              AKS_CLUSTER="${AKS_CLUSTER_NAME_PROD:-aks-platform-prod}"
+              AKS_RG="${AKS_RESOURCE_GROUP_PROD:-rg-platform-prod}"
+              NAMESPACE="default"
+              ;;
+            *)
+              echo "❌ Invalid environment: $ENVIRONMENT"
+              exit 1
+              ;;
+          esac
+          
+          # Validate rollback strategy
+          TARGET=""
+          case "$STRATEGY" in
+            "previous-version")
+              TARGET="previous"
+              echo "📋 Rollback strategy: Previous version"
+              ;;
+            "specific-version")
+              if [[ -z "${{ github.event.inputs.target_version }}" ]]; then
+                echo "❌ Target version required for specific-version strategy"
+                exit 1
+              fi
+              TARGET="${{ github.event.inputs.target_version }}"
+              echo "📋 Rollback strategy: Specific version ($TARGET)"
+              ;;
+            "specific-revision")
+              if [[ -z "${{ github.event.inputs.target_revision }}" ]]; then
+                echo "❌ Target revision required for specific-revision strategy"
+                exit 1
+              fi
+              TARGET="${{ github.event.inputs.target_revision }}"
+              echo "📋 Rollback strategy: Specific revision ($TARGET)"
+              ;;
+            *)
+              echo "❌ Invalid rollback strategy: $STRATEGY"
+              exit 1
+              ;;
+          esac
+          
+          # Set outputs
+          echo "should_rollback=true" >> $GITHUB_OUTPUT
+          echo "target_environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
+          echo "aks_cluster_name=$AKS_CLUSTER" >> $GITHUB_OUTPUT
+          echo "aks_resource_group=$AKS_RG" >> $GITHUB_OUTPUT
+          echo "rollback_target=$TARGET" >> $GITHUB_OUTPUT
+          echo "namespace=$NAMESPACE" >> $GITHUB_OUTPUT
+          
+          echo "✅ Rollback validation completed"
+
+  pre-rollback-checks:
+    runs-on: ubuntu-latest
+    needs: validate-rollback
+    if: needs.validate-rollback.outputs.should_rollback == 'true'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: '3.12.0'
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group "${{ needs.validate-rollback.outputs.aks_resource_group }}" \
+            --name "${{ needs.validate-rollback.outputs.aks_cluster_name }}" \
+            --overwrite-existing
+
+      - name: Pre-rollback health check
+        run: |
+          APPLICATION="${{ github.event.inputs.application_name }}"
+          NAMESPACE="${{ needs.validate-rollback.outputs.namespace }}"
+          FORCE_ROLLBACK="${{ github.event.inputs.force_rollback }}"
+          
+          echo "🏥 Checking current deployment health..."
+          
+          # Check if deployment exists
+          if ! kubectl get deployment "$APPLICATION" -n "$NAMESPACE" >/dev/null 2>&1; then
+            echo "❌ Deployment $APPLICATION not found in namespace $NAMESPACE"
+            exit 1
+          fi
+          
+          # Check current deployment status
+          READY_REPLICAS=$(kubectl get deployment "$APPLICATION" -n "$NAMESPACE" -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+          DESIRED_REPLICAS=$(kubectl get deployment "$APPLICATION" -n "$NAMESPACE" -o jsonpath='{.spec.replicas}')
+          
+          echo "Current deployment status: $READY_REPLICAS/$DESIRED_REPLICAS replicas ready"
+          
+          if [[ "$READY_REPLICAS" != "$DESIRED_REPLICAS" && "$FORCE_ROLLBACK" != "true" ]]; then
+            echo "⚠️ Current deployment appears unhealthy ($READY_REPLICAS/$DESIRED_REPLICAS ready)"
+            echo "Consider using force_rollback=true if you want to proceed anyway"
+          else
+            echo "✅ Pre-rollback checks completed"
+          fi
+
+      - name: Check Helm release history
+        run: |
+          APPLICATION="${{ github.event.inputs.application_name }}"
+          NAMESPACE="${{ needs.validate-rollback.outputs.namespace }}"
+          STRATEGY="${{ github.event.inputs.rollback_strategy }}"
+          
+          echo "📋 Checking Helm release history for $APPLICATION..."
+          
+          # Check if Helm release exists
+          if ! helm list -n "$NAMESPACE" | grep -q "$APPLICATION"; then
+            echo "❌ Helm release $APPLICATION not found in namespace $NAMESPACE"
+            exit 1
+          fi
+          
+          # Show release history
+          echo "📜 Helm release history:"
+          helm history "$APPLICATION" -n "$NAMESPACE"
+          
+          # Validate rollback target
+          if [[ "$STRATEGY" == "specific-revision" ]]; then
+            TARGET_REV="${{ github.event.inputs.target_revision }}"
+            if ! helm history "$APPLICATION" -n "$NAMESPACE" | grep -q "^$TARGET_REV"; then
+              echo "❌ Target revision $TARGET_REV not found in release history"
+              exit 1
+            fi
+            echo "✅ Target revision $TARGET_REV found in history"
+          fi
+
+  rollback:
+    runs-on: ubuntu-latest
+    needs: [validate-rollback, pre-rollback-checks]
+    if: needs.validate-rollback.outputs.should_rollback == 'true'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: '3.12.0'
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group "${{ needs.validate-rollback.outputs.aks_resource_group }}" \
+            --name "${{ needs.validate-rollback.outputs.aks_cluster_name }}" \
+            --overwrite-existing
+
+      - name: Create rollback backup
+        run: |
+          APPLICATION="${{ github.event.inputs.application_name }}"
+          NAMESPACE="${{ needs.validate-rollback.outputs.namespace }}"
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          
+          echo "💾 Creating backup before rollback..."
+          
+          # Get current deployment YAML
+          kubectl get deployment "$APPLICATION" -n "$NAMESPACE" -o yaml > "backup-deployment-$APPLICATION-$TIMESTAMP.yaml"
+          
+          # Get current Helm values
+          helm get values "$APPLICATION" -n "$NAMESPACE" > "backup-values-$APPLICATION-$TIMESTAMP.yaml"
+          
+          echo "✅ Backup created: backup-deployment-$APPLICATION-$TIMESTAMP.yaml"
+          echo "✅ Values backup: backup-values-$APPLICATION-$TIMESTAMP.yaml"
+
+      - name: Execute rollback
+        run: |
+          APPLICATION="${{ github.event.inputs.application_name }}"
+          NAMESPACE="${{ needs.validate-rollback.outputs.namespace }}"
+          STRATEGY="${{ github.event.inputs.rollback_strategy }}"
+          TARGET="${{ needs.validate-rollback.outputs.rollback_target }}"
+          
+          echo "🔄 Executing rollback for $APPLICATION..."
+          echo "Strategy: $STRATEGY"
+          echo "Target: $TARGET"
+          
+          case "$STRATEGY" in
+            "previous-version")
+              echo "Rolling back to previous version..."
+              helm rollback "$APPLICATION" -n "$NAMESPACE" --wait --timeout=10m
+              ;;
+            "specific-version")
+              echo "Rolling back to specific version: $TARGET"
+              # For specific version, we need to reinstall with that version
+              CHART_PATH="helm/$APPLICATION"
+              if [[ ! -d "$CHART_PATH" ]]; then
+                echo "❌ Chart path $CHART_PATH not found"
+                exit 1
+              fi
+              
+              # Get current values
+              helm get values "$APPLICATION" -n "$NAMESPACE" > current-values.yaml
+              
+              # Upgrade with specific image tag
+              helm upgrade "$APPLICATION" "$CHART_PATH" \
+                -n "$NAMESPACE" \
+                -f current-values.yaml \
+                --set image.tag="$TARGET" \
+                --wait --timeout=10m
+              ;;
+            "specific-revision")
+              echo "Rolling back to specific revision: $TARGET"
+              helm rollback "$APPLICATION" "$TARGET" -n "$NAMESPACE" --wait --timeout=10m
+              ;;
+          esac
+          
+          echo "✅ Rollback command executed successfully"
+
+      - name: Verify rollback
+        run: |
+          APPLICATION="${{ github.event.inputs.application_name }}"
+          NAMESPACE="${{ needs.validate-rollback.outputs.namespace }}"
+          
+          echo "🔍 Verifying rollback..."
+          
+          # Wait for deployment to be ready
+          echo "Waiting for deployment to be ready..."
+          kubectl wait --for=condition=available \
+            deployment/"$APPLICATION" \
+            -n "$NAMESPACE" \
+            --timeout=600s
+          
+          # Check deployment status
+          READY_REPLICAS=$(kubectl get deployment "$APPLICATION" -n "$NAMESPACE" -o jsonpath='{.status.readyReplicas}')
+          DESIRED_REPLICAS=$(kubectl get deployment "$APPLICATION" -n "$NAMESPACE" -o jsonpath='{.spec.replicas}')
+          
+          echo "Post-rollback status: $READY_REPLICAS/$DESIRED_REPLICAS replicas ready"
+          
+          if [[ "$READY_REPLICAS" == "$DESIRED_REPLICAS" ]]; then
+            echo "✅ Rollback verification successful"
+          else
+            echo "❌ Rollback verification failed: deployment not fully ready"
+            exit 1
+          fi
+
+      - name: Post-rollback health check
+        if: github.event.inputs.skip_health_check != 'true'
+        run: |
+          APPLICATION="${{ github.event.inputs.application_name }}"
+          NAMESPACE="${{ needs.validate-rollback.outputs.namespace }}"
+          
+          echo "🏥 Performing post-rollback health check..."
+          
+          # Get service details
+          SERVICE_NAME=$(kubectl get service -n "$NAMESPACE" -l app.kubernetes.io/name="$APPLICATION" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "$APPLICATION")
+          SERVICE_PORT=$(kubectl get service "$SERVICE_NAME" -n "$NAMESPACE" -o jsonpath='{.spec.ports[0].port}' 2>/dev/null || echo "8080")
+          
+          # Port forward and test health endpoint
+          echo "Testing health endpoint via port-forward..."
+          kubectl port-forward service/"$SERVICE_NAME" 8080:$SERVICE_PORT -n "$NAMESPACE" &
+          PF_PID=$!
+          
+          # Wait for port-forward to be ready
+          sleep 10
+          
+          # Test health endpoint
+          for i in {1..5}; do
+            if curl -f http://localhost:8080/actuator/health >/dev/null 2>&1; then
+              echo "✅ Health check passed (attempt $i)"
+              kill $PF_PID 2>/dev/null || true
+              exit 0
+            fi
+            echo "⏳ Health check attempt $i failed, retrying..."
+            sleep 10
+          done
+          
+          kill $PF_PID 2>/dev/null || true
+          echo "❌ Health check failed after 5 attempts"
+          exit 1
+
+      - name: Update Helm release notes
+        run: |
+          APPLICATION="${{ github.event.inputs.application_name }}"
+          NAMESPACE="${{ needs.validate-rollback.outputs.namespace }}"
+          STRATEGY="${{ github.event.inputs.rollback_strategy }}"
+          TARGET="${{ needs.validate-rollback.outputs.rollback_target }}"
+          TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S UTC')
+          
+          echo "📝 Updating Helm release notes..."
+          
+          # Add annotation to track rollback
+          kubectl annotate deployment "$APPLICATION" \
+            -n "$NAMESPACE" \
+            rollback.deployment.kubernetes.io/timestamp="$TIMESTAMP" \
+            rollback.deployment.kubernetes.io/strategy="$STRATEGY" \
+            rollback.deployment.kubernetes.io/target="$TARGET" \
+            rollback.deployment.kubernetes.io/triggered-by="${{ github.actor }}" \
+            --overwrite
+          
+          echo "✅ Rollback tracking annotations added"
+
+  notify-completion:
+    runs-on: ubuntu-latest
+    needs: [validate-rollback, rollback]
+    if: always() && needs.validate-rollback.outputs.should_rollback == 'true'
+    steps:
+      - name: Rollback completion notification
+        run: |
+          APPLICATION="${{ github.event.inputs.application_name }}"
+          ENVIRONMENT="${{ needs.validate-rollback.outputs.target_environment }}"
+          STRATEGY="${{ github.event.inputs.rollback_strategy }}"
+          TARGET="${{ needs.validate-rollback.outputs.rollback_target }}"
+          
+          if [[ "${{ needs.rollback.result }}" == "success" ]]; then
+            echo "🎉 Rollback completed successfully!"
+            echo "Application: $APPLICATION"
+            echo "Environment: $ENVIRONMENT"
+            echo "Strategy: $STRATEGY"
+            echo "Target: $TARGET"
+            echo "Triggered by: ${{ github.actor }}"
+            echo "Workflow run: ${{ github.run_id }}"
+          else
+            echo "❌ Rollback failed!"
+            echo "Application: $APPLICATION"
+            echo "Environment: $ENVIRONMENT" 
+            echo "Check the workflow logs for details"
+            echo "Workflow run: ${{ github.run_id }}"
+          fi

@@ -128,6 +128,16 @@ Each environment has dedicated Helm values files:
 
 ## ⚙️ Helm Charts
 
+### Available Workflows
+
+| Workflow | Purpose | Trigger | Features |
+|----------|---------|---------|----------|
+| `deploy-java-app.yml` | Deploy Java applications | Push/Manual | Automated deployment |
+| `deploy-nodejs-app.yml` | Deploy Node.js applications | Push/Manual | Automated deployment |
+| `shared-deploy.yml` | Reusable deployment logic | Called by other workflows | Multi-environment support |
+| `rollback-deployment.yml` | Rollback deployments | Manual only | Multiple rollback strategies |
+| `pr-security-check.yml` | Security scanning | Pull requests | Security validation |
+
 ### Available Charts
 
 #### Java Application Chart (`helm/java-app/`)
@@ -323,6 +333,41 @@ curl http://localhost:8080/actuator/health
 
 # Check resource usage
 kubectl top pods -n <namespace>
+```
+
+### Rollback Procedures
+
+#### Quick Rollback (Previous Version)
+```bash
+# Rollback to previous version via GitHub Actions
+gh workflow run rollback-deployment.yml \
+  -f environment=production \
+  -f application_name=java-app \
+  -f rollback_strategy=previous-version
+```
+
+#### Advanced Rollback Options
+```bash
+# Rollback to specific version
+gh workflow run rollback-deployment.yml \
+  -f environment=production \
+  -f application_name=java-app \
+  -f rollback_strategy=specific-version \
+  -f target_version=1.2.3
+
+# Rollback to specific Helm revision
+gh workflow run rollback-deployment.yml \
+  -f environment=production \
+  -f application_name=java-app \
+  -f rollback_strategy=specific-revision \
+  -f target_revision=5
+
+# Force rollback (even if current deployment is healthy)
+gh workflow run rollback-deployment.yml \
+  -f environment=production \
+  -f application_name=java-app \
+  -f rollback_strategy=previous-version \
+  -f force_rollback=true
 ```
 
 ### Debugging Commands
