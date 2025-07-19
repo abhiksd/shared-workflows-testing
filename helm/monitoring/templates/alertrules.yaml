@@ -1,0 +1,192 @@
+{{- if and .Values.alerting.enabled .Values.prometheus.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "aks-monitoring.fullname" . }}-alerts
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "aks-monitoring.labels" . | nindent 4 }}
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+    {{- if .Values.alerting.critical.applicationDown.enabled }}
+    - name: application.critical
+      rules:
+        - alert: ApplicationDown
+          expr: up{job=~".*app.*"} == 0
+          for: {{ .Values.alerting.critical.applicationDown.duration }}
+          labels:
+            severity: {{ .Values.alerting.critical.applicationDown.severity }}
+            category: application
+            environment: {{ .Values.global.environment }}
+          annotations:
+            summary: "Application {{ "{{ $labels.job }}" }} is down"
+            description: "Application {{ "{{ $labels.job }}" }} on instance {{ "{{ $labels.instance }}" }} has been down for more than {{ .Values.alerting.critical.applicationDown.duration }}."
+            runbook_url: "https://runbooks.company.com/alerts/application-down"
+        
+        {{- if .Values.alerting.critical.highErrorRate.enabled }}
+        - alert: HighErrorRate
+          expr: |
+            (
+              rate(http_requests_total{status=~"5.."}[5m])
+              /
+              rate(http_requests_total[5m])
+            ) * 100 > {{ .Values.alerting.critical.highErrorRate.threshold }}
+          for: {{ .Values.alerting.critical.highErrorRate.duration }}
+          labels:
+            severity: {{ .Values.alerting.critical.highErrorRate.severity }}
+            category: application
+            environment: {{ .Values.global.environment }}
+          annotations:
+            summary: "High error rate detected for {{ "{{ $labels.job }}" }}"
+            description: "Error rate is {{ "{{ $value | humanizePercentage }}" }} for {{ "{{ $labels.job }}" }} which is above the threshold of {{ .Values.alerting.critical.highErrorRate.threshold }}%."
+            runbook_url: "https://runbooks.company.com/alerts/high-error-rate"
+        {{- end }}
+        
+        {{- if .Values.alerting.critical.podCrashLoop.enabled }}
+        - alert: PodCrashLooping
+          expr: increase(kube_pod_container_status_restarts_total[15m]) > 0
+          for: {{ .Values.alerting.critical.podCrashLoop.duration }}
+          labels:
+            severity: {{ .Values.alerting.critical.podCrashLoop.severity }}
+            category: kubernetes
+            environment: {{ .Values.global.environment }}
+          annotations:
+            summary: "Pod {{ "{{ $labels.namespace }}" }}/{{ "{{ $labels.pod }}" }} is crash looping"
+            description: "Pod {{ "{{ $labels.namespace }}" }}/{{ "{{ $labels.pod }}" }} ({{ "{{ $labels.container }}" }}) has been restarting {{ "{{ $value }}" }} times in the last 15 minutes."
+            runbook_url: "https://runbooks.company.com/alerts/pod-crash-loop"
+        {{- end }}
+    {{- end }}
+    
+    {{- if or .Values.alerting.warning.highCpuUsage.enabled .Values.alerting.warning.highMemoryUsage.enabled .Values.alerting.warning.highDiskUsage.enabled }}
+    - name: resources.warning
+      rules:
+        {{- if .Values.alerting.warning.highCpuUsage.enabled }}
+        - alert: HighCpuUsage
+          expr: |
+            (
+              100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+            ) > {{ .Values.alerting.warning.highCpuUsage.threshold }}
+          for: {{ .Values.alerting.warning.highCpuUsage.duration }}
+          labels:
+            severity: {{ .Values.alerting.warning.highCpuUsage.severity }}
+            category: infrastructure
+            environment: {{ .Values.global.environment }}
+          annotations:
+            summary: "High CPU usage on {{ "{{ $labels.instance }}" }}"
+            description: "CPU usage is {{ "{{ $value | humanizePercentage }}" }} on {{ "{{ $labels.instance }}" }} which is above the threshold of {{ .Values.alerting.warning.highCpuUsage.threshold }}%."
+            runbook_url: "https://runbooks.company.com/alerts/high-cpu-usage"
+        {{- end }}
+        
+        {{- if .Values.alerting.warning.highMemoryUsage.enabled }}
+        - alert: HighMemoryUsage
+          expr: |
+            (
+              (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes)
+              /
+              node_memory_MemTotal_bytes
+            ) * 100 > {{ .Values.alerting.warning.highMemoryUsage.threshold }}
+          for: {{ .Values.alerting.warning.highMemoryUsage.duration }}
+          labels:
+            severity: {{ .Values.alerting.warning.highMemoryUsage.severity }}
+            category: infrastructure
+            environment: {{ .Values.global.environment }}
+          annotations:
+            summary: "High memory usage on {{ "{{ $labels.instance }}" }}"
+            description: "Memory usage is {{ "{{ $value | humanizePercentage }}" }} on {{ "{{ $labels.instance }}" }} which is above the threshold of {{ .Values.alerting.warning.highMemoryUsage.threshold }}%."
+            runbook_url: "https://runbooks.company.com/alerts/high-memory-usage"
+        {{- end }}
+        
+        {{- if .Values.alerting.warning.highDiskUsage.enabled }}
+        - alert: HighDiskUsage
+          expr: |
+            (
+              (node_filesystem_size_bytes{fstype!="tmpfs"} - node_filesystem_avail_bytes{fstype!="tmpfs"})
+              /
+              node_filesystem_size_bytes{fstype!="tmpfs"}
+            ) * 100 > {{ .Values.alerting.warning.highDiskUsage.threshold }}
+          for: {{ .Values.alerting.warning.highDiskUsage.duration }}
+          labels:
+            severity: {{ .Values.alerting.warning.highDiskUsage.severity }}
+            category: infrastructure
+            environment: {{ .Values.global.environment }}
+          annotations:
+            summary: "High disk usage on {{ "{{ $labels.instance }}" }} mount {{ "{{ $labels.mountpoint }}" }}"
+            description: "Disk usage is {{ "{{ $value | humanizePercentage }}" }} on {{ "{{ $labels.instance }}" }} mount {{ "{{ $labels.mountpoint }}" }} which is above the threshold of {{ .Values.alerting.warning.highDiskUsage.threshold }}%."
+            runbook_url: "https://runbooks.company.com/alerts/high-disk-usage"
+        {{- end }}
+    {{- end }}
+    
+    - name: kubernetes.warning
+      rules:
+        - alert: PodMemoryUsageHigh
+          expr: |
+            (
+              container_memory_working_set_bytes{container!=""}
+              /
+              container_spec_memory_limit_bytes{container!=""} * 100
+            ) > 90
+          for: 5m
+          labels:
+            severity: warning
+            category: kubernetes
+            environment: {{ .Values.global.environment }}
+          annotations:
+            summary: "Pod memory usage is high"
+            description: "Pod {{ "{{ $labels.namespace }}" }}/{{ "{{ $labels.pod }}" }} memory usage is {{ "{{ $value | humanizePercentage }}" }}"
+        
+        - alert: PodCpuUsageHigh
+          expr: |
+            (
+              rate(container_cpu_usage_seconds_total{container!=""}[5m])
+              /
+              container_spec_cpu_quota{container!=""} * container_spec_cpu_period{container!=""} * 100
+            ) > 90
+          for: 5m
+          labels:
+            severity: warning
+            category: kubernetes
+            environment: {{ .Values.global.environment }}
+          annotations:
+            summary: "Pod CPU usage is high"
+            description: "Pod {{ "{{ $labels.namespace }}" }}/{{ "{{ $labels.pod }}" }} CPU usage is {{ "{{ $value | humanizePercentage }}" }}"
+    
+    {{- if or .Values.alerting.info.deploymentEvents.enabled .Values.alerting.info.scalingEvents.enabled }}
+    - name: events.info
+      rules:
+        {{- if .Values.alerting.info.deploymentEvents.enabled }}
+        - alert: DeploymentReplicas
+          expr: |
+            (
+              kube_deployment_spec_replicas{deployment=~".*app.*"}
+              !=
+              kube_deployment_status_replicas_available{deployment=~".*app.*"}
+            ) and (
+              changes(kube_deployment_status_observed_generation{deployment=~".*app.*"}[10m]) > 0
+            )
+          for: 2m
+          labels:
+            severity: {{ .Values.alerting.info.deploymentEvents.severity }}
+            category: deployment
+            environment: {{ .Values.global.environment }}
+          annotations:
+            summary: "Deployment {{ "{{ $labels.deployment }}" }} replicas mismatch"
+            description: "Deployment {{ "{{ $labels.deployment }}" }} in namespace {{ "{{ $labels.namespace }}" }} has {{ "{{ $labels.spec_replicas }}" }} desired replicas but {{ "{{ $labels.available_replicas }}" }} available replicas."
+        {{- end }}
+        
+        {{- if .Values.alerting.info.scalingEvents.enabled }}
+        - alert: HorizontalPodAutoscalerScaling
+          expr: |
+            changes(kube_hpa_status_current_replicas[10m]) > 0
+          for: 0m
+          labels:
+            severity: {{ .Values.alerting.info.scalingEvents.severity }}
+            category: autoscaling
+            environment: {{ .Values.global.environment }}
+          annotations:
+            summary: "HPA {{ "{{ $labels.hpa }}" }} is scaling"
+            description: "HPA {{ "{{ $labels.hpa }}" }} in namespace {{ "{{ $labels.namespace }}" }} has scaled to {{ "{{ $value }}" }} replicas."
+        {{- end }}
+    {{- end }}
+{{- end }}

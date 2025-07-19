@@ -1,0 +1,73 @@
+{{- if and .Values.serviceMonitors.enabled .Values.prometheus.enabled }}
+{{- if .Values.serviceMonitors.javaApp.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "aks-monitoring.fullname" . }}-java-app
+  namespace: {{ .Values.serviceMonitors.javaApp.namespace | default .Release.Namespace }}
+  labels:
+    {{- include "aks-monitoring.labels" . | nindent 4 }}
+    app.kubernetes.io/component: java-app-monitor
+spec:
+  selector:
+    matchLabels:
+      {{- toYaml .Values.serviceMonitors.javaApp.selector.matchLabels | nindent 6 }}
+  endpoints:
+    {{- range .Values.serviceMonitors.javaApp.endpoints }}
+    - port: {{ .port }}
+      path: {{ .path }}
+      interval: {{ .interval }}
+      scrapeTimeout: 10s
+      honorLabels: true
+      metricRelabelings:
+        - sourceLabels: [__name__]
+          regex: '^jvm_.*'
+          targetLabel: __name__
+          replacement: 'java_${1}'
+        - sourceLabels: [__name__]
+          regex: '^http_.*'
+          targetLabel: __name__
+          replacement: 'java_${1}'
+    {{- end }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Values.serviceMonitors.javaApp.namespace | default .Release.Namespace }}
+{{- end }}
+
+{{- if .Values.serviceMonitors.nodejsApp.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "aks-monitoring.fullname" . }}-nodejs-app
+  namespace: {{ .Values.serviceMonitors.nodejsApp.namespace | default .Release.Namespace }}
+  labels:
+    {{- include "aks-monitoring.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nodejs-app-monitor
+spec:
+  selector:
+    matchLabels:
+      {{- toYaml .Values.serviceMonitors.nodejsApp.selector.matchLabels | nindent 6 }}
+  endpoints:
+    {{- range .Values.serviceMonitors.nodejsApp.endpoints }}
+    - port: {{ .port }}
+      path: {{ .path }}
+      interval: {{ .interval }}
+      scrapeTimeout: 10s
+      honorLabels: true
+      metricRelabelings:
+        - sourceLabels: [__name__]
+          regex: '^nodejs_.*'
+          targetLabel: __name__
+          replacement: 'nodejs_${1}'
+        - sourceLabels: [__name__]
+          regex: '^http_.*'
+          targetLabel: __name__
+          replacement: 'nodejs_${1}'
+    {{- end }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Values.serviceMonitors.nodejsApp.namespace | default .Release.Namespace }}
+{{- end }}
+{{- end }}

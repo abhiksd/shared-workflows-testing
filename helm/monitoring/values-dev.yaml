@@ -1,0 +1,96 @@
+# Development Environment Values for AKS Monitoring
+
+global:
+  environment: dev
+  clusterName: "aks-dev-cluster"
+  region: "eastus"
+
+# Reduced resources for development
+kube-prometheus-stack:
+  prometheus:
+    prometheusSpec:
+      # Smaller storage for dev
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: managed-csi
+            resources:
+              requests:
+                storage: 20Gi
+      
+      # Shorter retention for dev
+      retention: 7d
+      retentionSize: 15GB
+      
+      # Reduced resources
+      resources:
+        requests:
+          memory: 1Gi
+          cpu: 250m
+        limits:
+          memory: 2Gi
+          cpu: 500m
+  
+  alertmanager:
+    alertmanagerSpec:
+      storage:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: managed-csi
+            resources:
+              requests:
+                storage: 5Gi
+      
+      resources:
+        requests:
+          memory: 128Mi
+          cpu: 50m
+        limits:
+          memory: 256Mi
+          cpu: 100m
+
+# Grafana with reduced resources
+grafana:
+  # Single replica for dev
+  replicas: 1
+  
+  persistence:
+    storageClassName: managed-csi
+    size: 5Gi
+  
+  resources:
+    requests:
+      memory: 128Mi
+      cpu: 50m
+    limits:
+      memory: 256Mi
+      cpu: 100m
+  
+  # Use NodePort for easier access in dev
+  service:
+    type: NodePort
+    nodePort: 30080
+
+# Loki with reduced storage
+loki-stack:
+  loki:
+    persistence:
+      size: 20Gi
+      storageClassName: managed-csi
+
+# Simplified alerting for dev
+alerting:
+  critical:
+    applicationDown:
+      duration: "5m"  # Longer duration for dev to avoid noise
+    highErrorRate:
+      threshold: 10   # Higher threshold for dev
+      duration: "10m"
+  
+  warning:
+    highCpuUsage:
+      threshold: 90   # Higher threshold for dev
+      duration: "15m"
+    highMemoryUsage:
+      threshold: 90
+      duration: "15m"

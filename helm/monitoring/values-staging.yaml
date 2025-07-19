@@ -1,0 +1,96 @@
+# Staging Environment Values for AKS Monitoring
+
+global:
+  environment: staging
+  clusterName: "aks-staging-cluster"
+  region: "eastus"
+
+# Production-like configuration with smaller scale
+kube-prometheus-stack:
+  prometheus:
+    prometheusSpec:
+      # Medium storage for staging
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: managed-csi-premium
+            resources:
+              requests:
+                storage: 40Gi
+      
+      # Medium retention for staging
+      retention: 15d
+      retentionSize: 35GB
+      
+      # Medium resources
+      resources:
+        requests:
+          memory: 1.5Gi
+          cpu: 375m
+        limits:
+          memory: 3Gi
+          cpu: 750m
+  
+  alertmanager:
+    alertmanagerSpec:
+      storage:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: managed-csi-premium
+            resources:
+              requests:
+                storage: 8Gi
+      
+      resources:
+        requests:
+          memory: 192Mi
+          cpu: 75m
+        limits:
+          memory: 384Mi
+          cpu: 150m
+
+# Grafana with medium resources
+grafana:
+  replicas: 1
+  
+  persistence:
+    storageClassName: managed-csi-premium
+    size: 8Gi
+  
+  resources:
+    requests:
+      memory: 192Mi
+      cpu: 75m
+    limits:
+      memory: 384Mi
+      cpu: 150m
+  
+  # Internal load balancer for staging
+  service:
+    type: LoadBalancer
+    annotations:
+      service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+
+# Loki with medium storage
+loki-stack:
+  loki:
+    persistence:
+      size: 40Gi
+      storageClassName: managed-csi-premium
+
+# Production-like alerting for staging
+alerting:
+  critical:
+    applicationDown:
+      duration: "3m"
+    highErrorRate:
+      threshold: 7
+      duration: "7m"
+  
+  warning:
+    highCpuUsage:
+      threshold: 85
+      duration: "12m"
+    highMemoryUsage:
+      threshold: 85
+      duration: "12m"

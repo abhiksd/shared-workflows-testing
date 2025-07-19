@@ -1,0 +1,352 @@
+# AKS Monitoring Stack Configuration
+# This values file configures a comprehensive monitoring solution for AKS
+
+# Global configuration
+global:
+  environment: dev
+  clusterName: "aks-cluster"
+  region: "eastus"
+  azureSubscriptionId: ""
+  azureResourceGroup: ""
+  
+# Prometheus Stack Configuration
+prometheus:
+  enabled: true
+  
+kube-prometheus-stack:
+  # Prometheus configuration
+  prometheus:
+    enabled: true
+    prometheusSpec:
+      # Storage configuration
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: managed-csi-premium
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 50Gi
+      
+      # Retention configuration
+      retention: 30d
+      retentionSize: 45GB
+      
+      # Resource requirements
+      resources:
+        requests:
+          memory: 2Gi
+          cpu: 500m
+        limits:
+          memory: 4Gi
+          cpu: 1000m
+      
+      # Service Monitor selector
+      serviceMonitorSelectorNilUsesHelmValues: false
+      podMonitorSelectorNilUsesHelmValues: false
+      ruleSelectorNilUsesHelmValues: false
+      
+      # External labels for federation
+      externalLabels:
+        cluster: "{{ .Values.global.clusterName }}"
+        environment: "{{ .Values.global.environment }}"
+        region: "{{ .Values.global.region }}"
+  
+  # Alert Manager configuration
+  alertmanager:
+    enabled: true
+    alertmanagerSpec:
+      storage:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: managed-csi-premium
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 10Gi
+      
+      resources:
+        requests:
+          memory: 256Mi
+          cpu: 100m
+        limits:
+          memory: 512Mi
+          cpu: 200m
+  
+  # Node Exporter configuration
+  nodeExporter:
+    enabled: true
+  
+  # Kube State Metrics configuration
+  kubeStateMetrics:
+    enabled: true
+  
+  # Grafana configuration (disabled here as we'll use separate Grafana chart)
+  grafana:
+    enabled: false
+
+# Grafana Configuration
+grafana:
+  enabled: true
+  
+  # Admin credentials (should be set via secrets in production)
+  adminUser: admin
+  adminPassword: "admin123!"  # Change this in production!
+  
+  # Persistence configuration
+  persistence:
+    enabled: true
+    storageClassName: managed-csi-premium
+    size: 10Gi
+    accessModes:
+      - ReadWriteOnce
+  
+  # Resource requirements
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 200m
+  
+  # Service configuration
+  service:
+    type: LoadBalancer
+    port: 80
+    targetPort: 3000
+    annotations:
+      service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+  
+  # Data sources configuration
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          url: http://kube-prometheus-stack-prometheus:9090
+          access: proxy
+          isDefault: true
+        - name: Loki
+          type: loki
+          url: http://loki:3100
+          access: proxy
+  
+  # Dashboard providers
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: 'default'
+          orgId: 1
+          folder: ''
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+        - name: 'kubernetes'
+          orgId: 1
+          folder: 'Kubernetes'
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/kubernetes
+        - name: 'applications'
+          orgId: 1
+          folder: 'Applications'
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/applications
+
+# Loki Stack Configuration for Log Aggregation
+loki:
+  enabled: true
+
+loki-stack:
+  loki:
+    enabled: true
+    persistence:
+      enabled: true
+      storageClassName: managed-csi-premium
+      size: 50Gi
+    
+    config:
+      auth_enabled: false
+      server:
+        http_listen_port: 3100
+      
+      ingester:
+        lifecycler:
+          address: 127.0.0.1
+          ring:
+            kvstore:
+              store: inmemory
+            replication_factor: 1
+          final_sleep: 0s
+        chunk_idle_period: 5m
+        chunk_retain_period: 30s
+        max_transfer_retries: 0
+      
+      schema_config:
+        configs:
+          - from: 2020-10-24
+            store: boltdb-shipper
+            object_store: filesystem
+            schema: v11
+            index:
+              prefix: index_
+              period: 24h
+      
+      storage_config:
+        boltdb_shipper:
+          active_index_directory: /loki/boltdb-shipper-active
+          cache_location: /loki/boltdb-shipper-cache
+          shared_store: filesystem
+        filesystem:
+          directory: /loki/chunks
+      
+      chunk_store_config:
+        max_look_back_period: 0s
+      
+      table_manager:
+        retention_deletes_enabled: false
+        retention_period: 0s
+      
+      limits_config:
+        enforce_metric_name: false
+        reject_old_samples: true
+        reject_old_samples_max_age: 168h
+  
+  promtail:
+    enabled: true
+    config:
+      clients:
+        - url: http://loki:3100/loki/api/v1/push
+
+# Azure Monitor Integration
+azureMonitor:
+  enabled: true
+  # These will be set by the deployment workflow
+  workspaceId: ""
+  applicationInsightsKey: ""
+  
+  # Container Insights configuration
+  containerInsights:
+    enabled: true
+    omsagent:
+      image:
+        tag: "ciprod04262023"
+      resources:
+        requests:
+          cpu: 150m
+          memory: 250Mi
+        limits:
+          cpu: 500m
+          memory: 500Mi
+
+# Alerting Configuration
+alerting:
+  enabled: true
+  
+  # Critical alerts configuration
+  critical:
+    # Application down alert
+    applicationDown:
+      enabled: true
+      threshold: 0
+      duration: "2m"
+      severity: "critical"
+    
+    # High error rate alert
+    highErrorRate:
+      enabled: true
+      threshold: 5  # percentage
+      duration: "5m"
+      severity: "critical"
+    
+    # Pod crash loop alert
+    podCrashLoop:
+      enabled: true
+      threshold: 0
+      duration: "5m"
+      severity: "critical"
+  
+  # Warning alerts configuration
+  warning:
+    # High CPU usage
+    highCpuUsage:
+      enabled: true
+      threshold: 80  # percentage
+      duration: "10m"
+      severity: "warning"
+    
+    # High memory usage
+    highMemoryUsage:
+      enabled: true
+      threshold: 80  # percentage
+      duration: "10m"
+      severity: "warning"
+    
+    # High disk usage
+    highDiskUsage:
+      enabled: true
+      threshold: 85  # percentage
+      duration: "5m"
+      severity: "warning"
+  
+  # Info alerts configuration
+  info:
+    # Deployment events
+    deploymentEvents:
+      enabled: true
+      severity: "info"
+    
+    # Scaling events
+    scalingEvents:
+      enabled: true
+      severity: "info"
+
+# Service Monitor Configuration for Application Monitoring
+serviceMonitors:
+  enabled: true
+  
+  # Java application monitoring
+  javaApp:
+    enabled: true
+    namespace: "default"
+    selector:
+      matchLabels:
+        app: "java-app"
+    endpoints:
+      - port: "metrics"
+        path: "/actuator/prometheus"
+        interval: "30s"
+  
+  # Node.js application monitoring
+  nodejsApp:
+    enabled: true
+    namespace: "default"
+    selector:
+      matchLabels:
+        app: "nodejs-app"
+    endpoints:
+      - port: "metrics"
+        path: "/metrics"
+        interval: "30s"
+
+# Network Policy Configuration
+networkPolicy:
+  enabled: true
+  
+# Pod Security Policy Configuration
+podSecurityPolicy:
+  enabled: false
+
+# RBAC Configuration
+rbac:
+  create: true
