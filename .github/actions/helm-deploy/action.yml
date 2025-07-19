@@ -41,9 +41,6 @@ inputs:
   keyvault_name:
     description: 'Azure Key Vault name'
     required: false
-  deployment_context:
-    description: 'JSON deployment context with environment and application details'
-    required: false
 
 outputs:
   deployment_status:
@@ -52,98 +49,50 @@ outputs:
   release_name:
     description: 'Helm release name'
     value: ${{ steps.deploy.outputs.release_name }}
-  namespace:
-    description: 'Kubernetes namespace'
-    value: ${{ steps.namespace.outputs.namespace }}
 
 runs:
   using: 'composite'
   steps:
-    - name: Initialize deployment logging
-      run: |
-        echo "🚀 Helm Deployment Action Started"
-        echo "==============================================================="
-        
-        # Parse deployment context if provided
-        if [[ -n "${{ inputs.deployment_context }}" ]]; then
-          echo "📋 Deployment Context:"
-          echo '${{ inputs.deployment_context }}' | jq '.'
-          echo ""
-          
-          # Extract context information for enhanced logging
-          APP_NAME=$(echo '${{ inputs.deployment_context }}' | jq -r '.application // "${{ inputs.application_name }}"')
-          ENV_NAME=$(echo '${{ inputs.deployment_context }}' | jq -r '.environment // "${{ inputs.environment }}"')
-          TIMESTAMP=$(echo '${{ inputs.deployment_context }}' | jq -r '.timestamp // "N/A"')
-          
-          echo "🎯 Deployment initiated for:"
-          echo "   - Application: $APP_NAME"
-          echo "   - Environment: $ENV_NAME"
-          echo "   - Timestamp: $TIMESTAMP"
-        else
-          echo "📝 Basic deployment information:"
-          echo "   - Application: ${{ inputs.application_name }}"
-          echo "   - Environment: ${{ inputs.environment }}"
-        fi
-        echo ""
-      shell: bash
-
     - name: Validate required parameters
       run: |
         echo "🔍 Validating AKS deployment parameters..."
-        echo "==============================================================="
         
-        VALIDATION_FAILED=false
-        
-        # Check required parameters with enhanced logging
+        # Check required parameters
         if [ -z "${{ inputs.aks_resource_group }}" ]; then
           echo "❌ ERROR: aks_resource_group is empty or not provided"
-          echo "   This usually means:"
-          echo "   - AKS_ENVIRONMENTS_CONFIG secret is not properly formatted"
-          echo "   - Environment detection failed in shared workflow"
-          echo "   - validate-environment job didn't set outputs correctly"
-          VALIDATION_FAILED=true
-        else
-          echo "✅ AKS Resource Group: ${{ inputs.aks_resource_group }}"
+          echo "This usually means:"
+          echo "  - AKS_RESOURCE_GROUP_* secrets are not set"
+          echo "  - Environment detection failed"
+          echo "  - validate-environment job didn't set outputs correctly"
+          exit 1
         fi
         
         if [ -z "${{ inputs.aks_cluster_name }}" ]; then
           echo "❌ ERROR: aks_cluster_name is empty or not provided"
-          VALIDATION_FAILED=true
-        else
-          echo "✅ AKS Cluster Name: ${{ inputs.aks_cluster_name }}"
+          exit 1
         fi
         
         if [ -z "${{ inputs.azure_client_id }}" ]; then
           echo "❌ ERROR: azure_client_id is empty or not provided"
-          VALIDATION_FAILED=true
-        else
-          echo "✅ Azure Client ID: ${{ inputs.azure_client_id }}"
+          exit 1
         fi
         
         if [ -z "${{ inputs.azure_tenant_id }}" ]; then
           echo "❌ ERROR: azure_tenant_id is empty or not provided"
-          VALIDATION_FAILED=true
-        else
-          echo "✅ Azure Tenant ID: ${{ inputs.azure_tenant_id }}"
+          exit 1
         fi
         
         if [ -z "${{ inputs.azure_subscription_id }}" ]; then
           echo "❌ ERROR: azure_subscription_id is empty or not provided"
-          VALIDATION_FAILED=true
-        else
-          echo "✅ Azure Subscription ID: ${{ inputs.azure_subscription_id }}"
-        fi
-        
-        if [ "$VALIDATION_FAILED" = true ]; then
-          echo ""
-          echo "❌ Parameter validation failed - cannot proceed with deployment"
           exit 1
         fi
         
-        echo ""
-        echo "✅ All required parameters validated successfully"
-        echo "🎯 Deployment target: ${{ inputs.aks_cluster_name }} in ${{ inputs.aks_resource_group }}"
-        echo ""
+        echo "✅ All required parameters are provided:"
+        echo "   - AKS Resource Group: ${{ inputs.aks_resource_group }}"
+        echo "   - AKS Cluster Name: ${{ inputs.aks_cluster_name }}"
+        echo "   - Azure Tenant ID: ${{ inputs.azure_tenant_id }}"
+        echo "   - Azure Client ID: ${{ inputs.azure_client_id }}"
+        echo "   - Azure Subscription ID: ${{ inputs.azure_subscription_id }}"
       shell: bash
 
     - name: Azure Login with OIDC
@@ -159,63 +108,18 @@ runs:
         version: '3.12.0'
 
     - name: Get AKS credentials
-      run: |
-        echo "🔐 Obtaining AKS cluster credentials..."
-        echo "   - Cluster: ${{ inputs.aks_cluster_name }}"
-        echo "   - Resource Group: ${{ inputs.aks_resource_group }}"
-        echo ""
-      shell: bash
-
-    - name: Configure AKS context
       uses: azure/aks-set-context@v3
       with:
         resource-group: ${{ inputs.aks_resource_group }}
         cluster-name: ${{ inputs.aks_cluster_name }}
 
-    - name: Verify cluster connectivity
-      run: |
-        echo "🔗 Verifying AKS cluster connectivity..."
-        
-        # Test cluster connection
-        if kubectl cluster-info; then
-          echo "✅ Successfully connected to AKS cluster"
-        else
-          echo "❌ Failed to connect to AKS cluster"
-          exit 1
-        fi
-        
-        # Log cluster information
-        echo ""
-        echo "📊 Cluster Information:"
-        kubectl version --short || true
-        echo ""
-      shell: bash
-
     - name: Create namespace if not exists
       run: |
         NAMESPACE="${{ inputs.environment }}-${{ inputs.application_name }}"
-        
-        echo "🏗️  Setting up Kubernetes namespace..."
-        echo "   - Namespace: $NAMESPACE"
-        echo "   - Environment: ${{ inputs.environment }}"
-        echo "   - Application: ${{ inputs.application_name }}"
-        echo ""
-        
-        # Create namespace with labels
         kubectl create namespace ${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
         kubectl label namespace ${NAMESPACE} environment=${{ inputs.environment }} --overwrite
         kubectl label namespace ${NAMESPACE} application=${{ inputs.application_name }} --overwrite
-        kubectl label namespace ${NAMESPACE} managed-by=github-actions --overwrite
-        
-        # Add deployment context as annotation if available
-        if [[ -n "${{ inputs.deployment_context }}" ]]; then
-          kubectl annotate namespace ${NAMESPACE} \
-            deployment-context='${{ inputs.deployment_context }}' --overwrite
-        fi
-        
-        echo "✅ Namespace $NAMESPACE configured successfully"
         echo "namespace=${NAMESPACE}" >> $GITHUB_OUTPUT
-        echo ""
       shell: bash
       id: namespace
 
@@ -226,31 +130,23 @@ runs:
         VALUES_FILE="${{ inputs.helm_chart_path }}/values-${{ inputs.environment }}.yaml"
         RUNTIME_VALUES_FILE="values-runtime-${{ inputs.environment }}.yaml"
         
-        echo "📝 Preparing Helm values configuration..."
-        echo "   - Environment: ${{ inputs.environment }}"
-        echo "   - Values file: ${VALUES_FILE}"
-        echo "   - Runtime values: ${RUNTIME_VALUES_FILE}"
-        echo ""
+        echo "📝 Using environment-specific values file: ${VALUES_FILE}"
         
         # Check if environment-specific values file exists
         if [ ! -f "${VALUES_FILE}" ]; then
           echo "❌ Environment-specific values file not found: ${VALUES_FILE}"
-          echo ""
           echo "📋 Available values files:"
           find ${{ inputs.helm_chart_path }} -name "values*.yaml" -type f
           exit 1
         fi
         
-        echo "✅ Environment values file found: ${VALUES_FILE}"
-        
         # Create runtime values file with dynamic values
         cat > ${RUNTIME_VALUES_FILE} << EOF
-        # Runtime values for ${{ inputs.environment }} - Auto-generated by GitHub Actions
+        # Runtime values for ${{ inputs.environment }} - Auto-generated
         global:
           environment: ${{ inputs.environment }}
           applicationName: ${{ inputs.application_name }}
           applicationType: ${{ inputs.application_type }}
-          deploymentTimestamp: "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
           
         image:
           repository: ${{ inputs.registry }}/${{ inputs.application_name }}
@@ -269,8 +165,6 @@ runs:
             value: ${{ inputs.image_tag }}
           - name: HELM_VERSION
             value: ${{ inputs.helm_version }}
-          - name: DEPLOYMENT_NAMESPACE
-            value: ${NAMESPACE}
         EOF
         
         # Add Azure Key Vault configuration if provided
@@ -286,54 +180,22 @@ runs:
           echo "✅ Azure Key Vault configuration added to runtime values"
         fi
         
-        # Add deployment context if available
-        if [[ -n "${{ inputs.deployment_context }}" ]]; then
-          DEPLOYMENT_BRANCH=$(echo '${{ inputs.deployment_context }}' | jq -r '.branch // "unknown"')
-          DEPLOYMENT_EVENT=$(echo '${{ inputs.deployment_context }}' | jq -r '.event // "unknown"')
-          
-          cat >> ${RUNTIME_VALUES_FILE} << EOF
-        
-        # Deployment metadata from GitHub Actions
-        deploymentMetadata:
-          branch: "${DEPLOYMENT_BRANCH}"
-          event: "${DEPLOYMENT_EVENT}"
-          workflowRun: "${{ github.run_id }}"
-          gitSha: "${{ github.sha }}"
-        EOF
-          echo "✅ Deployment metadata added to runtime values"
-        fi
-        
         echo "values_file=${VALUES_FILE}" >> $GITHUB_OUTPUT
         echo "runtime_values_file=${RUNTIME_VALUES_FILE}" >> $GITHUB_OUTPUT
         
-        echo ""
-        echo "📄 Environment-specific values (first 20 lines):"
-        echo "==============================================================="
+        echo "✅ Values files prepared successfully"
+        echo "📄 Environment-specific values:"
         head -20 ${VALUES_FILE}
         echo "..."
-        echo ""
         echo "📄 Runtime values:"
-        echo "==============================================================="
         cat ${RUNTIME_VALUES_FILE}
-        echo ""
       shell: bash
 
     - name: Lint Helm chart
       run: |
-        echo "🔍 Linting Helm chart..."
-        echo "   - Chart path: ${{ inputs.helm_chart_path }}"
-        echo "   - Values files: ${{ steps.values.outputs.values_file }}, ${{ steps.values.outputs.runtime_values_file }}"
-        echo ""
-        
-        if helm lint ${{ inputs.helm_chart_path }} \
+        helm lint ${{ inputs.helm_chart_path }} \
           -f ${{ steps.values.outputs.values_file }} \
-          -f ${{ steps.values.outputs.runtime_values_file }}; then
-          echo "✅ Helm chart lint passed"
-        else
-          echo "❌ Helm chart lint failed"
-          exit 1
-        fi
-        echo ""
+          -f ${{ steps.values.outputs.runtime_values_file }}
       shell: bash
 
     - name: Deploy with Helm
@@ -342,18 +204,11 @@ runs:
         NAMESPACE="${{ steps.namespace.outputs.namespace }}"
         RELEASE_NAME="${{ inputs.application_name }}-${{ inputs.environment }}"
         
-        echo "🚀 Starting Helm deployment..."
-        echo "==============================================================="
-        echo "   - Release: $RELEASE_NAME"
-        echo "   - Namespace: $NAMESPACE"
-        echo "   - Chart: ${{ inputs.helm_chart_path }}"
-        echo "   - Version: ${{ inputs.helm_version }}"
-        echo "   - Image: ${{ inputs.registry }}/${{ inputs.application_name }}:${{ inputs.image_tag }}"
-        echo ""
+        echo "Deploying ${RELEASE_NAME} to namespace ${NAMESPACE}"
         
         # Check if release exists
         if helm list -n ${NAMESPACE} | grep -q ${RELEASE_NAME}; then
-          echo "📦 Existing release found - performing upgrade..."
+          echo "Upgrading existing release..."
           helm upgrade ${RELEASE_NAME} ${{ inputs.helm_chart_path }} \
             --namespace ${NAMESPACE} \
             --values ${{ steps.values.outputs.values_file }} \
@@ -361,11 +216,9 @@ runs:
             --version ${{ inputs.helm_version }} \
             --wait \
             --timeout 600s \
-            --atomic \
-            --history-max 10
-          echo "✅ Helm upgrade completed successfully"
+            --atomic
         else
-          echo "🆕 New deployment - performing installation..."
+          echo "Installing new release..."
           helm install ${RELEASE_NAME} ${{ inputs.helm_chart_path }} \
             --namespace ${NAMESPACE} \
             --values ${{ steps.values.outputs.values_file }} \
@@ -374,30 +227,16 @@ runs:
             --wait \
             --timeout 600s \
             --atomic
-          echo "✅ Helm installation completed successfully"
         fi
         
         echo "release_name=${RELEASE_NAME}" >> $GITHUB_OUTPUT
         echo "status=success" >> $GITHUB_OUTPUT
         
-        echo ""
-        echo "🔍 Post-deployment verification..."
-        echo "==============================================================="
-        
         # Get deployment status
-        echo "📋 Pods status:"
-        kubectl get pods -n ${NAMESPACE} -l app.kubernetes.io/name=${{ inputs.application_name }} || true
+        kubectl get pods -n ${NAMESPACE} -l app.kubernetes.io/name=${{ inputs.application_name }}
+        kubectl get svc -n ${NAMESPACE} -l app.kubernetes.io/name=${{ inputs.application_name }}
         
-        echo ""
-        echo "📋 Services status:"
-        kubectl get svc -n ${NAMESPACE} -l app.kubernetes.io/name=${{ inputs.application_name }} || true
-        
-        echo ""
-        echo "📋 Helm release status:"
-        helm status ${RELEASE_NAME} -n ${NAMESPACE} || true
-        
-        echo ""
-        echo "✅ Deployment verification completed"
+        echo "Deployment completed successfully!"
       shell: bash
 
     - name: Run deployment tests
@@ -405,36 +244,17 @@ runs:
         NAMESPACE="${{ steps.namespace.outputs.namespace }}"
         RELEASE_NAME="${{ steps.deploy.outputs.release_name }}"
         
-        echo "🧪 Running deployment tests and health checks..."
-        echo "==============================================================="
-        
         # Run Helm test if tests exist
-        echo "🔬 Running Helm tests..."
         if helm test ${RELEASE_NAME} --namespace ${NAMESPACE} --timeout 300s; then
-          echo "✅ Helm tests passed"
+          echo "Helm tests passed"
         else
-          echo "⚠️  Helm tests failed or not available (this may be expected)"
+          echo "Helm tests failed or not available"
         fi
-        
-        echo ""
-        echo "⏳ Waiting for deployment to be ready..."
         
         # Wait for deployment to be ready
-        if kubectl wait --for=condition=available deployment/${RELEASE_NAME} -n ${NAMESPACE} --timeout=300s; then
-          echo "✅ Deployment is ready and healthy"
-        else
-          echo "❌ Deployment failed to become ready within timeout"
-          
-          # Show debug information
-          echo ""
-          echo "🔍 Debug information:"
-          kubectl describe deployment/${RELEASE_NAME} -n ${NAMESPACE} || true
-          kubectl get events -n ${NAMESPACE} --sort-by='.lastTimestamp' | tail -10 || true
-          exit 1
-        fi
+        kubectl wait --for=condition=available deployment/${RELEASE_NAME} -n ${NAMESPACE} --timeout=300s
         
-        echo ""
-        echo "✅ All deployment tests completed successfully"
+        echo "Deployment is ready and healthy"
       shell: bash
 
     - name: Generate deployment summary
@@ -442,52 +262,24 @@ runs:
         NAMESPACE="${{ steps.namespace.outputs.namespace }}"
         RELEASE_NAME="${{ steps.deploy.outputs.release_name }}"
         
-        echo "📊 Generating deployment summary..."
-        echo ""
-        
-        # Environment-specific success message
-        case "${{ inputs.environment }}" in
-          "dev")
-            echo "🧪 Development deployment completed successfully!"
-            ;;
-          "staging")
-            echo "🎭 Staging deployment completed successfully!"
-            ;;
-          "production")
-            echo "🏭 Production deployment completed successfully!"
-            ;;
-          *)
-            echo "🚀 Deployment completed successfully!"
-            ;;
-        esac
-        
         cat >> $GITHUB_STEP_SUMMARY << EOF
         ## 🚀 Deployment Summary
         
-        **Application:** ${{ inputs.application_name }}  
-        **Environment:** ${{ inputs.environment }}  
-        **Image Tag:** ${{ inputs.image_tag }}  
-        **Helm Chart Version:** ${{ inputs.helm_version }}  
-        **Namespace:** ${NAMESPACE}  
-        **Release Name:** ${RELEASE_NAME}  
-        **AKS Cluster:** ${{ inputs.aks_cluster_name }}  
-        **Resource Group:** ${{ inputs.aks_resource_group }}  
+        **Application:** ${{ inputs.application_name }}
+        **Environment:** ${{ inputs.environment }}
+        **Image Tag:** ${{ inputs.image_tag }}
+        **Helm Chart Version:** ${{ inputs.helm_version }}
+        **Namespace:** ${NAMESPACE}
+        **Release Name:** ${RELEASE_NAME}
         
-        ### 📋 Deployment Status
+        ### Deployment Status
         \`\`\`
-        $(kubectl get pods -n ${NAMESPACE} -l app.kubernetes.io/name=${{ inputs.application_name }} 2>/dev/null || echo "No pods found")
+        $(kubectl get pods -n ${NAMESPACE} -l app.kubernetes.io/name=${{ inputs.application_name }})
         \`\`\`
         
-        ### 🌐 Service Information  
+        ### Service Information
         \`\`\`
-        $(kubectl get svc -n ${NAMESPACE} -l app.kubernetes.io/name=${{ inputs.application_name }} 2>/dev/null || echo "No services found")
-        \`\`\`
-        
-        ### ⚡ Helm Release Info
-        \`\`\`
-        $(helm list -n ${NAMESPACE} | grep ${RELEASE_NAME} || echo "Release not found")
+        $(kubectl get svc -n ${NAMESPACE} -l app.kubernetes.io/name=${{ inputs.application_name }})
         \`\`\`
         EOF
-        
-        echo "✅ Deployment summary generated and added to workflow summary"
       shell: bash

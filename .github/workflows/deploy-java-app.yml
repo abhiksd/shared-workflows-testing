@@ -50,6 +50,10 @@ jobs:
       KEYVAULT_NAME: ${{ secrets.KEYVAULT_NAME }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      # Dynamic AKS configuration - JSON format with all environments
-      AKS_ENVIRONMENTS_CONFIG: ${{ secrets.AKS_ENVIRONMENTS_CONFIG }}
+      # Environment-specific AKS secrets
+      AKS_CLUSTER_NAME_DEV: ${{ secrets.AKS_CLUSTER_NAME_DEV }}
+      AKS_RESOURCE_GROUP_DEV: ${{ secrets.AKS_RESOURCE_GROUP_DEV }}
+      AKS_CLUSTER_NAME_STAGING: ${{ secrets.AKS_CLUSTER_NAME_STAGING }}
+      AKS_RESOURCE_GROUP_STAGING: ${{ secrets.AKS_RESOURCE_GROUP_STAGING }}
+      AKS_CLUSTER_NAME_PROD: ${{ secrets.AKS_CLUSTER_NAME_PROD }}
+      AKS_RESOURCE_GROUP_PROD: ${{ secrets.AKS_RESOURCE_GROUP_PROD }}
