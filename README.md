@@ -346,6 +346,25 @@ gh workflow run rollback-deployment.yml \
   -f rollback_strategy=previous-version
 ```
 
+### Cleanup Procedures
+
+#### Quick Cleanup Commands
+```bash
+# Standard Helm cleanup (recommended)
+helm uninstall java-app -n default
+
+# Manual cleanup with kubectl (if Helm cleanup incomplete)
+kubectl delete all -l app.kubernetes.io/name=java-app -n default
+
+# Complete cleanup including all resource types
+kubectl delete all,configmap,secret,pvc,secretproviderclass,networkpolicy,poddisruptionbudget,hpa -l app.kubernetes.io/name=java-app -n default
+
+# Emergency force cleanup (last resort)
+kubectl delete all -l app.kubernetes.io/name=java-app -n default --force --grace-period=0
+```
+
+📖 **For comprehensive cleanup procedures, see [Helm Chart Guide - Cleanup Section](docs/HELM_CHART_GUIDE.md#-cleanup-and-resource-removal)**
+
 #### Advanced Rollback Options
 ```bash
 # Rollback to specific version
