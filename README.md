@@ -541,10 +541,20 @@ securityContext:
   readOnlyRootFilesystem: true
 ```
 
+## 📚 Documentation
+
+### Comprehensive Guides
+- **[Deployment Guide](docs/DEPLOYMENT_GUIDE.md)**: Detailed deployment scenarios and best practices
+- **[Helm Chart Guide](docs/HELM_CHART_GUIDE.md)**: Complete Helm chart customization and management
+- **[Azure Setup Guide](docs/AZURE_SETUP_GUIDE.md)**: Step-by-step Azure infrastructure setup
+- **[Spring Boot Profiles & Secrets](docs/SPRING_BOOT_PROFILES_AND_SECRETS.md)**: Spring Boot integration with Azure Key Vault
+- **[Quick Start Guide](docs/QUICK_START.md)**: 30-minute setup guide for immediate implementation
+- **[Integration Complete](docs/INTEGRATION_COMPLETE.md)**: Platform integration summary and validation
+
 ## 📞 Support
 
 ### Getting Help
-1. **Documentation**: Check this README and inline code comments
+1. **Documentation**: Check the comprehensive guides above and inline code comments
 2. **Issues**: Create GitHub issues for bugs or feature requests  
 3. **Discussions**: Use GitHub Discussions for questions
 4. **DevOps Team**: Contact via internal channels for urgent issues
