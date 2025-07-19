@@ -30,7 +30,7 @@ inputs:
     description: 'Azure Subscription ID for OIDC authentication'
     required: true
   jar_artifact_name:
-    description: 'Name of the JAR artifact (for debugging - artifacts should be downloaded by calling workflow)'
+    description: 'Name of the JAR artifact to download (for Java applications)'
     required: false
 
 outputs:
@@ -47,12 +47,17 @@ runs:
     - name: Azure Login with OIDC
       uses: azure/login@v2
       with:
-        client-id: ${{ inputs.azure_client_id }}
-        tenant-id: ${{ inputs.azure_tenant_id }}
+        auth-type: IDENTITY
+        # client-id: ${{ inputs.azure_client_id }}
+        # tenant-id: ${{ inputs.azure_tenant_id }}
         subscription-id: ${{ inputs.azure_subscription_id }}
 
-    # JAR artifacts are downloaded by the calling workflow
-    # This action expects artifacts to already be present in build_context
+    - name: Download JAR artifact
+      if: inputs.application_type == 'java-springboot' && inputs.jar_artifact_name != ''
+      uses: actions/download-artifact@v3
+      with:
+        name: ${{ inputs.jar_artifact_name }}
+        path: ${{ inputs.build_context }}
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -128,17 +133,15 @@ runs:
         if [ "$JAR_COUNT" -eq 0 ]; then
           echo "❌ ERROR: No executable JAR files found in build context!"
           echo "📋 This usually means:"
-          echo "   1. Maven build failed or artifacts were not uploaded"
-          echo "   2. Artifact download failed in the calling workflow"
+          echo "   1. Maven build artifacts were not uploaded properly"
+          echo "   2. JAR artifact download failed"
           echo "   3. Wrong build context path specified"
-          echo "   4. JAR artifact name mismatch between build and download"
           echo ""
           echo "🔍 Debugging information:"
           echo "   - Build context: ${{ inputs.build_context }}"
-          echo "   - Expected JAR artifact: ${{ inputs.jar_artifact_name }}"
+          echo "   - JAR artifact name: ${{ inputs.jar_artifact_name }}"
           echo "   - Current working directory: $(pwd)"
           echo ""
-          echo "💡 Check the 'Download Maven build artifacts' step in your workflow"
           exit 1
         else
           echo "✅ Found $JAR_COUNT executable JAR file(s) for Docker build:"
@@ -184,16 +187,16 @@ runs:
         echo "Built and pushed image: ${IMAGE_URL}"
       shell: bash
 
-    - name: Generate SBOM
-      uses: anchore/sbom-action@v0
-      with:
-        image: ${{ steps.outputs.outputs.image_url }}
-        format: spdx-json
-        output-file: "${{ inputs.application_name }}-sbom.spdx.json"
+    # - name: Generate SBOM
+    #   uses: anchore/sbom-action@v0
+    #   with:
+    #     image: ${{ steps.outputs.outputs.image_url }}
+    #     format: spdx-json
+    #     output-file: "${{ inputs.application_name }}-sbom.spdx.json"
 
-    - name: Upload SBOM
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ inputs.application_name }}-sbom
-        path: "${{ inputs.application_name }}-sbom.spdx.json"
-        retention-days: 30
+    # - name: Upload SBOM
+    #   uses: actions/upload-artifact@v4
+    #   with:
+    #     name: ${{ inputs.application_name }}-sbom
+    #     path: "${{ inputs.application_name }}-sbom.spdx.json"
+    #     retention-days: 30
