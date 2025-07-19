@@ -1,27 +1,24 @@
 name: Deploy Java Spring Boot Application
-
-# Required permissions for OIDC authentication with Azure
 permissions:
   id-token: write
   contents: read
   actions: read
-
 on:
   push:
     branches:
-      - main
+      - N630-6258_Helm_deploy
       - develop
       - 'release/**'
     paths:
-      - 'apps/java-app/**'
+      - './**'
       - 'helm/java-app/**'
-      - '.github/workflows/deploy-java-app.yml'
+      - '.github/workflows/java-app-ci.yml'
   pull_request:
     branches:
-      - main
       - develop
+      - N630-6258_Helm_deploy
     paths:
-      - 'apps/java-app/**'
+      - './**'
       - 'helm/java-app/**'
   workflow_dispatch:
     inputs:
@@ -40,15 +37,26 @@ on:
         default: false
 
 jobs:
-  # Deploy Java Application with inherited secrets
+  # Deploy Java Application
   deploy:
     uses: ./.github/workflows/shared-deploy.yml
     with:
       environment: ${{ github.event.inputs.environment || 'auto' }}
       application_name: java-app
       application_type: java-springboot
-      build_context: apps/java-app
-      dockerfile_path: apps/java-app/Dockerfile
+      build_context: ./
+      dockerfile_path: ./Dockerfile
       helm_chart_path: helm/java-app
       force_deploy: ${{ github.event.inputs.force_deploy == 'true' }}
-    secrets: inherit # Inherit all secrets for dynamic fetching
+      aks_cluster_name_dev: ${{ vars.AKS_CLUSTER_NAME_DEV }}
+      aks_resource_group_dev: ${{ vars.AKS_RESOURCE_GROUP_DEV }}
+      aks_cluster_name_sqe: ${{ vars.AKS_CLUSTER_NAME_DEV }}
+      aks_resource_group_sqe: ${{ vars.AKS_RESOURCE_GROUP_DEV }}
+      aks_cluster_name_prod: ${{ vars.AKS_CLUSTER_NAME_DEV }}
+      aks_resource_group_prod: ${{ vars.AKS_RESOURCE_GROUP_DEV }}
+    secrets:
+      ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+      KEYVAULT_NAME: ${{ secrets.KEYVAULT_NAME }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
