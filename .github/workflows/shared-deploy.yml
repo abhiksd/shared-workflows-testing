@@ -117,33 +117,33 @@ jobs:
             echo "📝 Using specified environment: $TARGET_ENV"
           fi
           
-          # Validate deployment rules based on target environment
+          # Set environment-specific AKS configuration and validate deployment rules
           case "$TARGET_ENV" in
             "dev")
+              AKS_CLUSTER="${{ secrets.AKS_CLUSTER_NAME_DEV }}"
+              AKS_RG="${{ secrets.AKS_RESOURCE_GROUP_DEV }}"
               if [[ "$GITHUB_REF" == "refs/heads/develop" ]] || [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
                 SHOULD_DEPLOY="true"
-                AKS_CLUSTER="${{ secrets.AKS_CLUSTER_NAME_DEV }}"
-                AKS_RG="${{ secrets.AKS_RESOURCE_GROUP_DEV }}"
                 echo "✅ Dev deployment approved: develop branch or manual trigger"
               else
                 echo "❌ Dev deployment blocked: must be develop branch or manual trigger"
               fi
               ;;
             "staging")
+              AKS_CLUSTER="${{ secrets.AKS_CLUSTER_NAME_STAGING }}"
+              AKS_RG="${{ secrets.AKS_RESOURCE_GROUP_STAGING }}"
               if [[ "$GITHUB_REF" == "refs/heads/main" ]] || [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
                 SHOULD_DEPLOY="true"
-                AKS_CLUSTER="${{ secrets.AKS_CLUSTER_NAME_STAGING }}"
-                AKS_RG="${{ secrets.AKS_RESOURCE_GROUP_STAGING }}"
                 echo "✅ Staging deployment approved: main branch or manual trigger"
               else
                 echo "❌ Staging deployment blocked: must be main branch or manual trigger"
               fi
               ;;
             "production")
+              AKS_CLUSTER="${{ secrets.AKS_CLUSTER_NAME_PROD }}"
+              AKS_RG="${{ secrets.AKS_RESOURCE_GROUP_PROD }}"
               if [[ "$GITHUB_REF" == refs/heads/release/* ]] || [[ "$GITHUB_REF" == refs/tags/* ]] || [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
                 SHOULD_DEPLOY="true"
-                AKS_CLUSTER="${{ secrets.AKS_CLUSTER_NAME_PROD }}"
-                AKS_RG="${{ secrets.AKS_RESOURCE_GROUP_PROD }}"
                 echo "✅ Production deployment approved: release branch, tag, or manual trigger"
               else
                 echo "❌ Production deployment blocked: must be release branch, tag, or manual trigger"
@@ -151,6 +151,9 @@ jobs:
               ;;
             *)
               echo "❌ Invalid environment: $TARGET_ENV"
+              # Set empty values for invalid environments
+              AKS_CLUSTER=""
+              AKS_RG=""
               ;;
           esac
           
@@ -161,17 +164,21 @@ jobs:
           echo "   - AKS cluster name: $AKS_CLUSTER"
           echo "   - AKS resource group: $AKS_RG"
           
-          # Validate that secrets are available
-          if [ "$SHOULD_DEPLOY" == "true" ]; then
+          # Validate that secrets are available for valid environments
+          if [ "$TARGET_ENV" != "unknown" ] && [ "$TARGET_ENV" != "" ]; then
             if [ -z "$AKS_CLUSTER" ]; then
               echo "❌ ERROR: AKS cluster name is empty for environment $TARGET_ENV"
               echo "Check that AKS_CLUSTER_NAME_${TARGET_ENV^^} secret is set"
-              exit 1
+              if [ "$SHOULD_DEPLOY" == "true" ]; then
+                exit 1
+              fi
             fi
             if [ -z "$AKS_RG" ]; then
               echo "❌ ERROR: AKS resource group is empty for environment $TARGET_ENV"
               echo "Check that AKS_RESOURCE_GROUP_${TARGET_ENV^^} secret is set"
-              exit 1
+              if [ "$SHOULD_DEPLOY" == "true" ]; then
+                exit 1
+              fi
             fi
           fi
           
@@ -380,6 +387,32 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Debug validate-environment outputs
+        run: |
+          echo "🔍 Debugging validate-environment job outputs:"
+          echo "   - should_deploy: ${{ needs.validate-environment.outputs.should_deploy }}"
+          echo "   - target_environment: ${{ needs.validate-environment.outputs.target_environment }}"
+          echo "   - aks_cluster_name: ${{ needs.validate-environment.outputs.aks_cluster_name }}"
+          echo "   - aks_resource_group: ${{ needs.validate-environment.outputs.aks_resource_group }}"
+          echo ""
+          echo "🔍 Raw GitHub context:"
+          echo "   - github.ref: ${{ github.ref }}"
+          echo "   - github.event_name: ${{ github.event_name }}"
+          echo "   - inputs.environment: ${{ inputs.environment }}"
+          
+          # Validate outputs are not empty
+          if [ -z "${{ needs.validate-environment.outputs.aks_cluster_name }}" ]; then
+            echo "❌ ERROR: aks_cluster_name output is empty!"
+          else
+            echo "✅ aks_cluster_name is set"
+          fi
+          
+          if [ -z "${{ needs.validate-environment.outputs.aks_resource_group }}" ]; then
+            echo "❌ ERROR: aks_resource_group output is empty!"
+          else
+            echo "✅ aks_resource_group is set"
+          fi
 
       - name: Deploy to AKS
         uses: ./.github/actions/helm-deploy
