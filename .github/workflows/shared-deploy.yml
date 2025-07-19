@@ -1,5 +1,11 @@
 name: Shared AKS Deployment Workflow
 
+# Required permissions for OIDC authentication with Azure
+permissions:
+  id-token: write
+  contents: read
+  actions: read
+
 on:
   workflow_call:
     inputs:

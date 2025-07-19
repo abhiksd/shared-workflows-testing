@@ -11,7 +11,16 @@ This document explains the enhanced secret inheritance approach implemented for 
 Caller Workflow → secrets: inherit → Shared Workflow → Dynamic Fetching → Helm Deploy Action
 ```
 
-### 2. **Dynamic Secret Fetching**
+### 2. **OIDC Authentication Setup**
+All workflows require specific permissions for Azure OIDC authentication:
+```yaml
+permissions:
+  id-token: write      # Required for OIDC token generation
+  contents: read       # Required for repository access
+  actions: read        # Required for workflow execution
+```
+
+### 3. **Dynamic Secret Fetching**
 The `validate-environment` job in the shared workflow dynamically fetches the appropriate AKS secrets based on the detected or specified environment:
 
 ```bash
@@ -31,7 +40,7 @@ case "$TARGET_ENV" in
 esac
 ```
 
-### 3. **Enhanced Logging and Context Passing**
+### 4. **Enhanced Logging and Context Passing**
 - Comprehensive logging throughout the deployment pipeline
 - Deployment context creation and passing between jobs
 - Environment-specific deployment information
@@ -41,6 +50,14 @@ esac
 
 ### Caller Workflows (Java & Node.js)
 ```yaml
+name: Deploy Java Spring Boot Application
+
+# Required permissions for OIDC authentication with Azure
+permissions:
+  id-token: write
+  contents: read
+  actions: read
+
 jobs:
   deploy:
     uses: ./.github/workflows/shared-deploy.yml
@@ -54,6 +71,14 @@ jobs:
 
 ### Shared Workflow
 ```yaml
+name: Shared AKS Deployment Workflow
+
+# Required permissions for OIDC authentication with Azure
+permissions:
+  id-token: write
+  contents: read
+  actions: read
+
 secrets:
   # Core Azure secrets
   ACR_LOGIN_SERVER:
@@ -87,15 +112,24 @@ secrets:
 - Gets deployment context with enhanced metadata
 - Provides comprehensive logging throughout deployment
 
-## Required Secrets Configuration
+## Required Setup
 
-### Repository Secrets
+### 1. Azure OIDC Configuration
+Before using these workflows, ensure you have set up OIDC authentication between GitHub and Azure:
+
+1. **Create Azure AD App Registration**
+2. **Configure Federated Credentials** for your GitHub repository
+3. **Assign appropriate Azure permissions** to the service principal
+
+For detailed setup instructions, see: [Azure Login Action Documentation](https://github.com/Azure/login#configure-a-service-principal-with-a-federated-credential-to-use-oidc-based-authentication)
+
+### 2. Repository Secrets
 Set these secrets in your GitHub repository settings:
 
 #### Core Azure Secrets
 - `ACR_LOGIN_SERVER`: Azure Container Registry URL
-- `AZURE_TENANT_ID`: Azure AD Tenant ID
-- `AZURE_CLIENT_ID`: Service Principal Client ID
+- `AZURE_TENANT_ID`: Azure AD Tenant ID  
+- `AZURE_CLIENT_ID`: Service Principal Client ID (App Registration)
 - `AZURE_SUBSCRIPTION_ID`: Azure Subscription ID
 - `KEYVAULT_NAME`: Azure Key Vault name
 
@@ -106,6 +140,15 @@ Set these secrets in your GitHub repository settings:
 - `AKS_RESOURCE_GROUP_STAGING`: Staging resource group
 - `AKS_CLUSTER_NAME_PROD`: Production AKS cluster name
 - `AKS_RESOURCE_GROUP_PROD`: Production resource group
+
+### 3. Workflow Permissions
+Ensure all workflows have the required permissions:
+```yaml
+permissions:
+  id-token: write      # Critical for Azure OIDC authentication
+  contents: read       # Required for repository access
+  actions: read        # Required for workflow execution
+```
 
 ## Enhanced Logging Features
 
@@ -257,21 +300,38 @@ The deployment context passed between jobs includes:
 
 ### Common Issues
 
-#### 1. Missing AKS Secrets
+#### 1. OIDC Authentication Errors
+**Error**: `Failed to fetch federated token from GitHub`
+**Solution**: 
+- Ensure `id-token: write` permission is set in workflow
+- Verify Azure OIDC configuration is correct
+- Check that `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, and `AZURE_SUBSCRIPTION_ID` are set
+
+**Error**: `Unable to get ACTIONS_ID_TOKEN_REQUEST_URL env variable`
+**Solution**: Add the required permissions block to your workflow:
+```yaml
+permissions:
+  id-token: write
+  contents: read  
+  actions: read
+```
+
+#### 2. Missing AKS Secrets
 **Error**: `AKS cluster name is empty for environment 'dev'`
 **Solution**: Ensure `AKS_CLUSTER_NAME_DEV` and `AKS_RESOURCE_GROUP_DEV` secrets are configured
 
-#### 2. Secret Inheritance Not Working
+#### 3. Secret Inheritance Not Working
 **Error**: Parameter validation failed
 **Solution**: Verify that caller workflow uses `secrets: inherit`
 
-#### 3. Environment Detection Issues
+#### 4. Environment Detection Issues
 **Error**: Auto environment detection failed
 **Solution**: Check branch naming and deployment rules
 
 ### Debug Information
 
 The enhanced logging provides comprehensive debug information:
+- OIDC authentication status
 - Parameter validation results
 - Secret availability status
 - Environment detection logic

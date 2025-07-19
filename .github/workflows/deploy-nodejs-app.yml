@@ -1,5 +1,11 @@
 name: Deploy Node.js Application
 
+# Required permissions for OIDC authentication with Azure
+permissions:
+  id-token: write
+  contents: read
+  actions: read
+
 on:
   push:
     branches:
