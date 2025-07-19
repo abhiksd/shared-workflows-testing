@@ -34,7 +34,7 @@ on:
         default: false
 
 jobs:
-  # Deploy Java Application
+  # Deploy Java Application with inherited secrets
   deploy:
     uses: ./.github/workflows/shared-deploy.yml
     with:
@@ -45,15 +45,4 @@ jobs:
       dockerfile_path: apps/java-app/Dockerfile
       helm_chart_path: helm/java-app
       force_deploy: ${{ github.event.inputs.force_deploy == 'true' }}
-    secrets:
-      ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
-      KEYVAULT_NAME: ${{ secrets.KEYVAULT_NAME }}
-      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      # Environment-specific AKS secrets
-      AKS_CLUSTER_NAME_DEV: ${{ secrets.AKS_CLUSTER_NAME_DEV }}
-      AKS_RESOURCE_GROUP_DEV: ${{ secrets.AKS_RESOURCE_GROUP_DEV }}
-      AKS_CLUSTER_NAME_STAGING: ${{ secrets.AKS_CLUSTER_NAME_STAGING }}
-      AKS_RESOURCE_GROUP_STAGING: ${{ secrets.AKS_RESOURCE_GROUP_STAGING }}
-      AKS_CLUSTER_NAME_PROD: ${{ secrets.AKS_CLUSTER_NAME_PROD }}
-      AKS_RESOURCE_GROUP_PROD: ${{ secrets.AKS_RESOURCE_GROUP_PROD }}
+    secrets: inherit # Inherit all secrets for dynamic fetching
