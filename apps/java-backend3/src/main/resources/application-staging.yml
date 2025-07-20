@@ -1,0 +1,222 @@
+# Staging Environment Profile
+# Production-like settings with some testing-friendly configurations
+spring:
+  profiles:
+    active: staging
+  
+  # PostgreSQL Database Configuration
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:staging-db.example.com}:${DB_PORT:5432}/${DB_NAME:javaapp_staging}
+    username: ${DB_USERNAME:javaapp_staging_user}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 15
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      leak-detection-threshold: 60000
+      connection-test-query: SELECT 1
+  
+  # JPA Configuration
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        use_sql_comments: false
+        jdbc:
+          time_zone: UTC
+        default_schema: public
+        connection:
+          provider_disables_autocommit: true
+        cache:
+          use_second_level_cache: true
+          use_query_cache: true
+          region:
+            factory_class: org.hibernate.cache.jcache.JCacheRegionFactory
+  
+  # Redis Configuration
+  redis:
+    host: ${REDIS_HOST:staging-redis.example.com}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD}
+    timeout: 3000ms
+    database: 0
+    ssl: ${REDIS_SSL:true}
+    lettuce:
+      pool:
+        max-active: 15
+        max-idle: 10
+        min-idle: 2
+        max-wait: 2000ms
+      cluster:
+        refresh:
+          adaptive: true
+  
+  # Cache Configuration
+  cache:
+    type: redis
+    redis:
+      time-to-live: 1800000  # 30 minutes
+      cache-null-values: false
+      key-prefix: "staging:cache:"
+  
+  # Security Configuration
+  security:
+    oauth2:
+      client:
+        registration:
+          azure:
+            client-id: ${AZURE_CLIENT_ID}
+            client-secret: ${AZURE_CLIENT_SECRET}
+            scope: openid,profile,email
+            redirect-uri: ${APP_BASE_URL}/login/oauth2/code/azure
+        provider:
+          azure:
+            authorization-uri: https://login.microsoftonline.com/${AZURE_TENANT_ID}/oauth2/v2.0/authorize
+            token-uri: https://login.microsoftonline.com/${AZURE_TENANT_ID}/oauth2/v2.0/token
+            user-info-uri: https://graph.microsoft.com/v1.0/me
+            user-name-attribute: name
+
+# Server Configuration
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    context-path: /api
+  error:
+    include-stacktrace: never
+    include-message: always
+  compression:
+    enabled: true
+    mime-types: text/html,text/xml,text/plain,text/css,text/javascript,application/javascript,application/json
+  http2:
+    enabled: true
+
+# Logging Configuration
+logging:
+  level:
+    com.example.javaapp: INFO
+    org.springframework.web: WARN
+    org.springframework.security: INFO
+    org.springframework.cache: INFO
+    org.hibernate.SQL: WARN
+    org.hibernate.type.descriptor.sql.BasicBinder: WARN
+    org.apache.tomcat: INFO
+    org.springframework.web.servlet.mvc.method.annotation: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/java-app-staging.log
+    max-size: 200MB
+    max-history: 60
+    total-size-cap: 5GB
+
+# Management & Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when_authorized
+      show-components: when_authorized
+      roles: ADMIN,OPERATOR
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      percentiles:
+        http.server.requests: 0.5,0.9,0.95,0.99
+    tags:
+      application: java-app
+      environment: staging
+      region: ${AZURE_REGION:eastus}
+
+# Application Configuration
+app:
+  name: Java App
+  version: ${APP_VERSION:1.0.0}
+  environment: staging
+  
+  # CORS Configuration
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:https://staging-frontend.example.com,https://test.example.com}
+    allowed-methods: "GET,POST,PUT,DELETE,OPTIONS,PATCH"
+    allowed-headers: "Content-Type,Authorization,X-Requested-With,X-API-Key"
+    allow-credentials: true
+    max-age: 3600
+  
+  # JWT Configuration
+  jwt:
+    secret: ${JWT_SECRET}
+    expiration: ${JWT_EXPIRATION:28800000}  # 8 hours
+    refresh-expiration: ${JWT_REFRESH_EXPIRATION:259200000}  # 3 days
+    issuer: ${JWT_ISSUER:staging-java-app}
+  
+  # Rate Limiting
+  rate-limit:
+    enabled: true
+    requests-per-minute: ${RATE_LIMIT_RPM:200}
+    burst-capacity: ${RATE_LIMIT_BURST:50}
+    
+  # File Upload
+  upload:
+    max-file-size: ${MAX_FILE_SIZE:20MB}
+    max-request-size: ${MAX_REQUEST_SIZE:100MB}
+    temp-dir: ${TEMP_DIR:/tmp/uploads}
+    allowed-types: ${ALLOWED_FILE_TYPES:jpg,jpeg,png,pdf,doc,docx,xls,xlsx}
+  
+  # Feature Flags
+  features:
+    new-api-enabled: ${FEATURE_NEW_API:true}
+    advanced-search: ${FEATURE_ADVANCED_SEARCH:true}
+    beta-features: ${FEATURE_BETA:true}
+
+# Azure Configuration
+azure:
+  keyvault:
+    enabled: ${AZURE_KEYVAULT_ENABLED:true}
+    uri: ${AZURE_KEYVAULT_URI}
+  
+  application-insights:
+    instrumentation-key: ${AZURE_APP_INSIGHTS_KEY}
+    
+  storage:
+    account-name: ${AZURE_STORAGE_ACCOUNT}
+    account-key: ${AZURE_STORAGE_KEY}
+    container-name: ${AZURE_STORAGE_CONTAINER:staging-uploads}
+
+# Database Migration
+flyway:
+  enabled: ${FLYWAY_ENABLED:true}
+  baseline-on-migrate: true
+  validate-on-migrate: true
+  locations: classpath:db/migration
+  table: flyway_schema_history
+
+# Connection Pooling
+hikari:
+  auto-commit: false
+  connection-test-query: SELECT 1
+  maximum-pool-size: 15
+  minimum-idle: 5
+  pool-name: StagingHikariPool
+
+# SSL/TLS Configuration
+server:
+  ssl:
+    enabled: ${SSL_ENABLED:true}
+    key-store: ${SSL_KEYSTORE_PATH}
+    key-store-password: ${SSL_KEYSTORE_PASSWORD}
+    key-store-type: ${SSL_KEYSTORE_TYPE:PKCS12}
