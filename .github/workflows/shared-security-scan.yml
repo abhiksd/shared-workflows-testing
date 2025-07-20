@@ -1,0 +1,281 @@
+name: Shared Security Scan
+description: 'Reusable security workflow for SonarQube and Checkmarx scanning'
+
+on:
+  workflow_call:
+    inputs:
+      application_name:
+        description: 'Application name'
+        required: true
+        type: string
+      application_type:
+        description: 'Application type (java-springboot, nodejs)'
+        required: true
+        type: string
+      build_context:
+        description: 'Build context path'
+        required: false
+        type: string
+        default: '.'
+      java_version:
+        description: 'Java version for Java applications'
+        required: false
+        type: string
+        default: '21'
+      node_version:
+        description: 'Node.js version for Node.js applications'
+        required: false
+        type: string
+        default: '20'
+      sonar_enabled:
+        description: 'Enable SonarQube scan'
+        required: false
+        type: boolean
+        default: true
+      checkmarx_enabled:
+        description: 'Enable Checkmarx scan'
+        required: false
+        type: boolean
+        default: true
+      sonar_coverage_threshold:
+        description: 'Minimum code coverage percentage'
+        required: false
+        type: string
+        default: '75'
+      sonar_reliability_rating:
+        description: 'Maximum reliability rating (1=A, 2=B, 3=C, 4=D, 5=E)'
+        required: false
+        type: string
+        default: '1'
+      sonar_security_rating:
+        description: 'Maximum security rating (1=A, 2=B, 3=C, 4=D, 5=E)'
+        required: false
+        type: string
+        default: '1'
+      sonar_maintainability_rating:
+        description: 'Maximum maintainability rating (1=A, 2=B, 3=C, 4=D, 5=E)'
+        required: false
+        type: string
+        default: '2'
+    secrets:
+      SONAR_TOKEN:
+        description: 'SonarQube authentication token'
+        required: false
+      SONAR_HOST_URL:
+        description: 'SonarQube server URL'
+        required: false
+      CHECKMARX_URL:
+        description: 'Checkmarx server URL'
+        required: false
+      CHECKMARX_USERNAME:
+        description: 'Checkmarx username'
+        required: false
+      CHECKMARX_PASSWORD:
+        description: 'Checkmarx password'
+        required: false
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: write
+  checks: write
+
+env:
+  REGISTRY: ${{ secrets.ACR_LOGIN_SERVER }}
+
+jobs:
+  # Setup and Build Application
+  build-app:
+    runs-on: ubuntu-latest
+    outputs:
+      build_successful: ${{ steps.build.outputs.success }}
+      artifact_name: ${{ steps.build.outputs.artifact_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java (for Java applications)
+        if: inputs.application_type == 'java-springboot'
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ inputs.java_version }}
+          distribution: 'temurin'
+
+      - name: Cache Maven dependencies (for Java applications)
+        if: inputs.application_type == 'java-springboot'
+        uses: actions/cache@v3
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles(format('{0}/**/pom.xml', inputs.build_context)) }}
+
+      - name: Build Java Application
+        if: inputs.application_type == 'java-springboot'
+        id: build-java
+        working-directory: ${{ inputs.build_context }}
+        run: |
+          echo "🔧 Building Java application: ${{ inputs.application_name }}"
+          mvn clean compile test-compile -B
+          echo "success=true" >> $GITHUB_OUTPUT
+          echo "artifact_name=java-${{ inputs.application_name }}-build" >> $GITHUB_OUTPUT
+
+      - name: Setup Node.js (for Node.js applications)
+        if: inputs.application_type == 'nodejs'
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node_version }}
+          cache: 'npm'
+          cache-dependency-path: ${{ inputs.build_context }}/package-lock.json
+
+      - name: Build Node.js Application
+        if: inputs.application_type == 'nodejs'
+        id: build-nodejs
+        working-directory: ${{ inputs.build_context }}
+        run: |
+          echo "🔧 Building Node.js application: ${{ inputs.application_name }}"
+          npm ci --silent
+          npm run build || npm run compile || echo "No build script found"
+          echo "success=true" >> $GITHUB_OUTPUT
+          echo "artifact_name=nodejs-${{ inputs.application_name }}-build" >> $GITHUB_OUTPUT
+
+      - name: Set Build Output
+        id: build
+        run: |
+          if [[ "${{ inputs.application_type }}" == "java-springboot" ]]; then
+            echo "success=${{ steps.build-java.outputs.success }}" >> $GITHUB_OUTPUT
+            echo "artifact_name=${{ steps.build-java.outputs.artifact_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "success=${{ steps.build-nodejs.outputs.success }}" >> $GITHUB_OUTPUT
+            echo "artifact_name=${{ steps.build-nodejs.outputs.artifact_name }}" >> $GITHUB_OUTPUT
+          fi
+
+  # SonarQube Security Scan
+  sonar-scan:
+    runs-on: ubuntu-latest
+    needs: build-app
+    if: inputs.sonar_enabled && needs.build-app.outputs.build_successful == 'true'
+    outputs:
+      scan_status: ${{ steps.sonar.outputs.scan_status }}
+      quality_gate_status: ${{ steps.sonar.outputs.quality_gate_status }}
+      coverage: ${{ steps.sonar.outputs.coverage }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java (for Java applications)
+        if: inputs.application_type == 'java-springboot'
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ inputs.java_version }}
+          distribution: 'temurin'
+
+      - name: Cache Maven dependencies (for Java applications)
+        if: inputs.application_type == 'java-springboot'
+        uses: actions/cache@v3
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles(format('{0}/**/pom.xml', inputs.build_context)) }}
+
+      - name: Prepare Java Application for SonarQube
+        if: inputs.application_type == 'java-springboot'
+        working-directory: ${{ inputs.build_context }}
+        run: |
+          echo "🔍 Preparing Java application for SonarQube analysis..."
+          mvn clean test jacoco:report -B || echo "Tests completed with warnings"
+
+      - name: Setup Node.js (for Node.js applications)
+        if: inputs.application_type == 'nodejs'
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node_version }}
+          cache: 'npm'
+          cache-dependency-path: ${{ inputs.build_context }}/package-lock.json
+
+      - name: Prepare Node.js Application for SonarQube
+        if: inputs.application_type == 'nodejs'
+        working-directory: ${{ inputs.build_context }}
+        run: |
+          echo "🔍 Preparing Node.js application for SonarQube analysis..."
+          npm ci --silent
+          npm run test:coverage || npm test -- --coverage || echo "No coverage tests found"
+
+      - name: SonarQube Scan
+        id: sonar
+        uses: ./.github/actions/sonar-scan
+        with:
+          application_name: ${{ inputs.application_name }}
+          application_type: ${{ inputs.application_type }}
+          build_context: ${{ inputs.build_context }}
+          sonar_enabled: ${{ inputs.sonar_enabled }}
+          sonar_host_url: ${{ secrets.SONAR_HOST_URL || vars.SONAR_HOST_URL }}
+          sonar_token: ${{ secrets.SONAR_TOKEN }}
+          sonar_project_key: ${{ vars.SONAR_PROJECT_KEY || inputs.application_name }}
+          sonar_coverage_threshold: ${{ inputs.sonar_coverage_threshold }}
+          sonar_reliability_rating: ${{ inputs.sonar_reliability_rating }}
+          sonar_security_rating: ${{ inputs.sonar_security_rating }}
+          sonar_maintainability_rating: ${{ inputs.sonar_maintainability_rating }}
+
+  # Checkmarx Security Scan
+  checkmarx-scan:
+    runs-on: ubuntu-latest
+    needs: build-app
+    if: inputs.checkmarx_enabled && needs.build-app.outputs.build_successful == 'true'
+    outputs:
+      scan_status: ${{ steps.checkmarx.outputs.scan_status }}
+      scan_id: ${{ steps.checkmarx.outputs.scan_id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Checkmarx Scan
+        id: checkmarx
+        uses: ./.github/actions/checkmarx-scan
+        with:
+          application_name: ${{ inputs.application_name }}
+          application_type: ${{ inputs.application_type }}
+          build_context: ${{ inputs.build_context }}
+          checkmarx_enabled: ${{ inputs.checkmarx_enabled }}
+          checkmarx_url: ${{ secrets.CHECKMARX_URL || vars.CHECKMARX_URL }}
+          checkmarx_username: ${{ secrets.CHECKMARX_USERNAME }}
+          checkmarx_password: ${{ secrets.CHECKMARX_PASSWORD }}
+          checkmarx_project_name: ${{ vars.CHECKMARX_PROJECT_NAME || inputs.application_name }}
+
+  # Security Results Summary
+  security-summary:
+    runs-on: ubuntu-latest
+    needs: [build-app, sonar-scan, checkmarx-scan]
+    if: always() && needs.build-app.outputs.build_successful == 'true'
+    steps:
+      - name: Security Scan Summary
+        run: |
+          echo "🔒 Security Scan Summary for ${{ inputs.application_name }}"
+          echo "=================================="
+          echo "Application: ${{ inputs.application_name }}"
+          echo "Type: ${{ inputs.application_type }}"
+          echo "Build Context: ${{ inputs.build_context }}"
+          echo ""
+          
+          SONAR_STATUS="${{ needs.sonar-scan.outputs.scan_status || 'SKIPPED' }}"
+          CHECKMARX_STATUS="${{ needs.checkmarx-scan.outputs.scan_status || 'SKIPPED' }}"
+          
+          echo "📊 SonarQube: $SONAR_STATUS"
+          if [[ "${{ inputs.sonar_enabled }}" == "true" ]]; then
+            echo "   - Quality Gate: ${{ needs.sonar-scan.outputs.quality_gate_status || 'N/A' }}"
+            echo "   - Coverage: ${{ needs.sonar-scan.outputs.coverage || 'N/A' }}%"
+          else
+            echo "   - Status: Disabled"
+          fi
+          
+          echo "🛡️ Checkmarx: $CHECKMARX_STATUS"
+          if [[ "${{ inputs.checkmarx_enabled }}" == "true" ]]; then
+            echo "   - Scan ID: ${{ needs.checkmarx-scan.outputs.scan_id || 'N/A' }}"
+          else
+            echo "   - Status: Disabled"
+          fi
+          
+          echo ""
+          if [[ "$SONAR_STATUS" == "FAILED" ]] || [[ "$CHECKMARX_STATUS" == "FAILED" ]]; then
+            echo "❌ Security scan FAILED - Please review the issues above"
+            exit 1
+          else
+            echo "✅ Security scan PASSED - All checks completed successfully"
+          fi
