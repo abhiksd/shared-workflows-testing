@@ -1,10 +1,103 @@
 # Azure Utility Scripts
 
-This directory contains utility scripts for managing Azure resources, Key Vault secrets, and identity verification.
+This directory contains utility scripts for managing Azure resources, Key Vault secrets, identity verification, deployment verification, and repository migration.
 
 ## 📋 Available Scripts
 
-### 1. Azure Key Vault Setup Script (`azure-keyvault-setup.sh`)
+### 1. Health Check Script (`health-check.sh`)
+
+Comprehensive deployment verification script that checks all components and services after deployment.
+
+#### Features
+- **Backend Services**: Verify all Java and Node.js backend health endpoints
+- **API Testing**: Test REST API endpoints and JSON responses
+- **Monitoring Stack**: Check Prometheus, Grafana, AlertManager, and Loki
+- **Performance Testing**: Measure response times and identify slow services
+- **Infrastructure**: Verify Kubernetes resources, SSL certificates, and DNS
+- **Comprehensive Reporting**: Detailed success/failure reporting with exit codes
+
+#### Usage Examples
+
+```bash
+# Check dev environment (default)
+./health-check.sh
+
+# Check staging environment
+./health-check.sh staging
+
+# Check production with verbose output
+./health-check.sh production true
+
+# Get help
+./health-check.sh --help
+```
+
+#### Exit Codes
+- `0` - All checks passed (100% success)
+- `1` - Some checks failed (≥80% success rate)
+- `2` - Many checks failed (<80% success rate)
+
+#### Example Output
+```
+🚀 Microservices Health Check Tool
+Environment: dev
+Domain: dev.mydomain.com
+=================================================
+
+🏗️ Backend Services Health Check
+==================================================
+✅ Java Backend 1 (User Management): OK (200, 0.245s)
+✅ Java Backend 2 (Product Catalog): OK (200, 0.189s)
+✅ Node.js Backend 1 (Notification): OK (200, 0.156s)
+
+📊 Health Check Summary
+==================================================
+Total Checks: 25
+Passed: 25
+Failed: 0
+Success Rate: 100%
+
+🎉 All checks passed! System is healthy.
+```
+
+---
+
+### 2. Repository Migration Script (`migrate-to-separate-repos.sh`)
+
+Automated script to split the monorepo into separate repositories for each backend service with centralized shared workflows.
+
+#### Features
+- **Automated Repository Creation**: Creates separate repositories for each backend
+- **Shared Workflows Setup**: Creates centralized shared workflows repository
+- **Complete Migration**: Copies all source code, Helm charts, and documentation
+- **Workflow Updates**: Updates all workflow references to use external shared workflows
+- **Documentation Generation**: Creates service-specific README files
+
+#### Usage Examples
+
+```bash
+# Migrate to organization 'my-company'
+./migrate-to-separate-repos.sh my-company
+
+# Migrate with custom shared workflows repo name
+./migrate-to-separate-repos.sh my-company my-shared-workflows
+
+# Get help
+./migrate-to-separate-repos.sh
+```
+
+#### Created Repositories
+- `org/shared-workflows` - Centralized GitHub Actions workflows
+- `org/java-backend1-user-management` - User Management Service
+- `org/java-backend2-product-catalog` - Product Catalog Service
+- `org/java-backend3-order-management` - Order Management Service
+- `org/nodejs-backend1-notification` - Notification Service
+- `org/nodejs-backend2-analytics` - Analytics Service
+- `org/nodejs-backend3-file-management` - File Management Service
+
+---
+
+### 3. Azure Key Vault Setup Script (`azure-keyvault-setup.sh`)
 
 Comprehensive script for managing Azure Key Vault and secrets.
 

@@ -121,6 +121,7 @@ gh workflow run deploy-monitoring.yml -f environment=dev
 - **[Helm Chart Guide](./docs/HELM_CHART_GUIDE.md)** - Kubernetes deployment configuration
 - **[Monitoring Setup Guide](./docs/MONITORING_SETUP_GUIDE.md)** - Observability stack configuration
 - **[Spring Boot Profiles Guide](./docs/SPRING_BOOT_PROFILES_AND_SECRETS.md)** - Application configuration and secrets management
+- **[Deployment Verification Guide](./docs/DEPLOYMENT_VERIFICATION_GUIDE.md)** - Comprehensive post-deployment testing and health checks
 
 ### **Migration & Deployment**
 - **[Repository Migration Guide](./REPOSITORY_MIGRATION_GUIDE.md)** - Step-by-step migration to separate repositories
