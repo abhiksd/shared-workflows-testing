@@ -36,7 +36,13 @@ Version calculation and tagging:
 - **Version incrementing**: `increment_version`
 - **GitHub outputs**: `set_version_outputs`
 
-
+### `checkmarx-utils.sh`
+Checkmarx security scanning functions:
+- **Authentication**: `cx_authenticate`, `cx_validate_config`
+- **Tool setup**: `cx_setup_tools`
+- **Scan execution**: `cx_run_sast`, `cx_run_sca`, `cx_run_kics`
+- **Results processing**: `cx_parse_results`, `cx_evaluate_thresholds`
+- **Reporting**: `cx_generate_report`, `cx_set_outputs`
 
 ## Simplifications Achieved
 
@@ -44,7 +50,7 @@ Version calculation and tagging:
 - **Shared Deploy Workflow**: 80+ lines of complex inline validation logic
 - **Version Strategy Action**: 60+ lines of complex version calculation
 - **Check Changes Action**: 50+ lines of change detection logic
-- **Checkmarx Scan Action**: 515+ lines of complex custom scanning logic
+- **Checkmarx Scan Action**: 515+ lines of complex scanning and validation logic
 - **Azure Identity Check**: 40+ lines of repetitive logging functions
 - **Health Check Script**: 30+ lines of duplicated HTTP checking
 - **Rollback Workflow**: 70+ lines of environment validation
@@ -53,7 +59,7 @@ Version calculation and tagging:
 - **Shared Deploy Workflow**: 6 lines using `validate_and_set_deployment`
 - **Version Strategy Action**: 4 lines using `set_version_outputs`
 - **Check Changes Action**: 8 lines using `should_deploy_based_on_changes`
-- **Checkmarx Scan Action**: 177 lines using official Checkmarx AST action
+- **Checkmarx Scan Action**: 50+ lines using Checkmarx utility functions
 - **Azure Identity Check**: Uses centralized logging functions
 - **Health Check Script**: Uses `check_http_endpoint` utility
 - **Rollback Workflow**: 12 lines using utility functions
