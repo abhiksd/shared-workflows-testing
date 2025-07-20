@@ -5,8 +5,10 @@ on:
     branches:
       - main
       - develop
+      - 'release/**'
     paths:
       - 'helm/monitoring/**'
+      - 'monitoring/**'
       - '.github/workflows/deploy-monitoring.yml'
       - '.github/workflows/monitoring-deploy.yml'
   workflow_dispatch:
@@ -19,8 +21,14 @@ on:
           - dev
           - staging
           - production
+          - all
       force_deploy:
         description: 'Force deployment even if no changes'
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Dry run - validate configuration without deploying'
         required: false
         type: boolean
         default: false
@@ -28,10 +36,99 @@ on:
 permissions:
   id-token: write
   contents: read
+  actions: read
 
 jobs:
+  # Detect changes and determine deployment strategy
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      monitoring_changed: ${{ steps.changes.outputs.monitoring_changed }}
+      should_deploy_dev: ${{ steps.strategy.outputs.should_deploy_dev }}
+      should_deploy_staging: ${{ steps.strategy.outputs.should_deploy_staging }}
+      should_deploy_production: ${{ steps.strategy.outputs.should_deploy_production }}
+      deployment_reason: ${{ steps.strategy.outputs.deployment_reason }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect monitoring changes
+        id: changes
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            if [[ "${{ github.event.inputs.force_deploy }}" == "true" ]]; then
+              echo "monitoring_changed=true" >> $GITHUB_OUTPUT
+              echo "🔄 Manual force deployment requested"
+            else
+              echo "monitoring_changed=true" >> $GITHUB_OUTPUT  
+              echo "🎯 Manual deployment requested"
+            fi
+          else
+            if git diff --name-only HEAD~1 HEAD | grep -E "^helm/monitoring/|^monitoring/|^\.github/workflows/.*monitoring.*\.yml$"; then
+              echo "monitoring_changed=true" >> $GITHUB_OUTPUT
+              echo "📊 Monitoring configuration changes detected:"
+              git diff --name-only HEAD~1 HEAD | grep -E "^helm/monitoring/|^monitoring/|^\.github/workflows/.*monitoring.*\.yml$"
+            else
+              echo "monitoring_changed=false" >> $GITHUB_OUTPUT
+              echo "ℹ️ No monitoring changes detected"
+            fi
+          fi
+
+      - name: Determine deployment strategy
+        id: strategy
+        run: |
+          REASON=""
+          DEV="false"
+          STAGING="false" 
+          PRODUCTION="false"
+          
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            ENV="${{ github.event.inputs.environment }}"
+            if [[ "$ENV" == "all" ]]; then
+              DEV="true"
+              STAGING="true"
+              PRODUCTION="true"
+              REASON="Manual deployment to all environments"
+            elif [[ "$ENV" == "dev" ]]; then
+              DEV="true"
+              REASON="Manual deployment to dev environment"
+            elif [[ "$ENV" == "staging" ]]; then
+              STAGING="true"
+              REASON="Manual deployment to staging environment"
+            elif [[ "$ENV" == "production" ]]; then
+              PRODUCTION="true"
+              REASON="Manual deployment to production environment"
+            fi
+          else
+            # Auto deployment based on branch
+            if [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+              DEV="true"
+              REASON="Auto deployment to dev (develop branch)"
+            elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+              STAGING="true"
+              REASON="Auto deployment to staging (main branch)"
+            elif [[ "${{ github.ref }}" == refs/heads/release/* ]]; then
+              PRODUCTION="true"
+              REASON="Auto deployment to production (release branch)"
+            fi
+          fi
+          
+          echo "should_deploy_dev=$DEV" >> $GITHUB_OUTPUT
+          echo "should_deploy_staging=$STAGING" >> $GITHUB_OUTPUT
+          echo "should_deploy_production=$PRODUCTION" >> $GITHUB_OUTPUT
+          echo "deployment_reason=$REASON" >> $GITHUB_OUTPUT
+          
+          echo "🎯 Deployment Strategy:"
+          echo "  Dev: $DEV"
+          echo "  Staging: $STAGING"
+          echo "  Production: $PRODUCTION"
+          echo "  Reason: $REASON"
+
   deploy-monitoring-to-dev:
-    if: github.ref == 'refs/heads/develop' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev')
+    needs: detect-changes
+    if: needs.detect-changes.outputs.monitoring_changed == 'true' && needs.detect-changes.outputs.should_deploy_dev == 'true'
     uses: ./.github/workflows/deploy-monitoring.yml
     with:
       environment: dev
@@ -45,7 +142,8 @@ jobs:
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
   deploy-monitoring-to-staging:
-    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+    needs: detect-changes
+    if: needs.detect-changes.outputs.monitoring_changed == 'true' && needs.detect-changes.outputs.should_deploy_staging == 'true'
     uses: ./.github/workflows/deploy-monitoring.yml
     with:
       environment: staging
@@ -59,7 +157,8 @@ jobs:
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
   deploy-monitoring-to-production:
-    if: startsWith(github.ref, 'refs/heads/release/') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production')
+    needs: detect-changes
+    if: needs.detect-changes.outputs.monitoring_changed == 'true' && needs.detect-changes.outputs.should_deploy_production == 'true'
     uses: ./.github/workflows/deploy-monitoring.yml
     with:
       environment: production
@@ -71,3 +170,49 @@ jobs:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+  # Summary job to report deployment results
+  deployment-summary:
+    runs-on: ubuntu-latest
+    needs: [detect-changes, deploy-monitoring-to-dev, deploy-monitoring-to-staging, deploy-monitoring-to-production]
+    if: always() && needs.detect-changes.outputs.monitoring_changed == 'true'
+    steps:
+      - name: Deployment Summary
+        run: |
+          echo "🎯 Monitoring Deployment Summary"
+          echo "================================"
+          echo "Reason: ${{ needs.detect-changes.outputs.deployment_reason }}"
+          echo ""
+          
+          DEV_STATUS="${{ needs.deploy-monitoring-to-dev.result || 'skipped' }}"
+          STAGING_STATUS="${{ needs.deploy-monitoring-to-staging.result || 'skipped' }}"
+          PROD_STATUS="${{ needs.deploy-monitoring-to-production.result || 'skipped' }}"
+          
+          echo "📊 Environment Results:"
+          echo "  🔧 Dev: $DEV_STATUS"
+          echo "  🎭 Staging: $STAGING_STATUS"
+          echo "  🚀 Production: $PROD_STATUS"
+          echo ""
+          
+          if [[ "$DEV_STATUS" == "failure" ]] || [[ "$STAGING_STATUS" == "failure" ]] || [[ "$PROD_STATUS" == "failure" ]]; then
+            echo "❌ Some monitoring deployments failed - check logs above"
+            exit 1
+          else
+            echo "✅ All scheduled monitoring deployments completed successfully"
+          fi
+
+  # Skip notification when no monitoring changes detected
+  no-changes-notification:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.monitoring_changed == 'false'
+    steps:
+      - name: No Changes Detected
+        run: |
+          echo "ℹ️ No monitoring configuration changes detected"
+          echo "Monitoring stack deployment skipped - no changes in:"
+          echo "  - helm/monitoring/**"
+          echo "  - monitoring/**"
+          echo "  - .github/workflows/*monitoring*.yml"
+          echo ""
+          echo "To force monitoring deployment, use 'workflow_dispatch' with 'force_deploy: true'"

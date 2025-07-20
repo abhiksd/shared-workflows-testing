@@ -387,6 +387,8 @@ flowchart TD
     style N fill:#c8e6c9
 ```
 
+**Note**: Monitoring deployments are now handled separately via `monitoring-deploy.yml` and only trigger when monitoring configurations change.
+
 **Job Dependencies:**
 1. **validate-environment** ← Always runs first
 2. **setup** ← Requires: validate-environment success
@@ -396,6 +398,55 @@ flowchart TD
 6. **deploy** ← Requires: build success
 7. **create_release** ← Requires: deploy success + production environment
 8. **health-check** ← Requires: deploy success
+
+---
+
+## 📊 Monitoring Stack Deployment Flow
+
+### Dedicated Monitoring Workflow
+
+```mermaid
+flowchart TD
+    A[Monitoring config changes] --> B[monitoring-deploy.yml triggers]
+    B --> C[detect-changes job]
+    
+    C --> D{Changes detected?}
+    D -->|No| E[no-changes-notification]
+    D -->|Yes| F{Determine deployment strategy}
+    
+    F --> G{Branch/Manual input}
+    
+    G -->|develop branch| H[Deploy to Dev]
+    G -->|main branch| I[Deploy to Staging]
+    G -->|release branch| J[Deploy to Production]
+    G -->|manual 'all'| K[Deploy to All Environments]
+    
+    H --> L[deployment-summary]
+    I --> L
+    J --> L
+    K --> M[Deploy to Dev + Staging + Prod]
+    M --> L
+    
+    L --> N[✅ Monitoring deployment SUCCESS]
+    E --> O[⏭️ Monitoring deployment SKIPPED]
+    
+    style D fill:#e3f2fd
+    style E fill:#fff3e0
+    style N fill:#c8e6c9
+    style O fill:#fff3e0
+```
+
+**Key Features:**
+- **Smart Change Detection**: Only deploys when monitoring configs change
+- **Multi-Environment Support**: Can deploy to specific environments or all
+- **Manual Override**: Force deployment via workflow_dispatch
+- **Comprehensive Reporting**: Summary of all environment deployments
+- **Efficient**: No unnecessary deployments, prevents resource waste
+
+**Monitoring Deployment Triggers:**
+- **Auto**: Changes to `helm/monitoring/**`, `monitoring/**`, or monitoring workflows
+- **Manual**: workflow_dispatch with environment selection (dev/staging/production/all)
+- **Branch-based**: develop→dev, main→staging, release→production
 
 ---
 
@@ -410,6 +461,8 @@ flowchart TD
 | **PR** | `→ main/develop` | `pr-security-check.yml` | ❌ None | ✅ Both | ❌ No |
 | **Manual** | Any branch | `deploy.yml` | User choice | ✅ Both | If prod |
 | **PR Review** | Any | `pr-security-check.yml` | ❌ None | ✅ Both | ❌ No |
+| **Push** | Monitoring changes | `monitoring-deploy.yml` | Based on branch | ❌ None | ❌ No |
+| **Manual** | Monitoring dispatch | `monitoring-deploy.yml` | User choice | ❌ None | ❌ No |
 
 ---
 
