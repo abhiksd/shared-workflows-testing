@@ -1,0 +1,109 @@
+{{- if .Values.configMap.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "java-app.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "java-app.labels" . | nindent 4 }}
+data:
+  {{- range $key, $value := .Values.configMap.data }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+  # Environment-specific configuration
+  environment: {{ .Values.global.environment | quote }}
+  application.name: {{ .Values.global.applicationName | quote }}
+  application.type: {{ .Values.global.applicationType | quote }}
+  # Spring Boot Server Configuration
+  server.port: {{ .Values.service.port | quote }}
+  spring.profiles.active: {{ .Values.global.environment | quote }}
+  spring.application.name: {{ .Values.global.applicationName | quote }}
+  # Management and Actuator Configuration
+  {{- if eq .Values.global.environment "production" }}
+  management.endpoints.web.exposure.include: "health,info,metrics,prometheus"
+  management.endpoint.health.show-details: "never"
+  {{- else }}
+  management.endpoints.web.exposure.include: "health,info,metrics,prometheus,env,configprops,beans,mappings"
+  management.endpoint.health.show-details: "always"
+  {{- end }}
+  management.server.port: {{ .Values.service.port | quote }}
+  management.endpoint.health.probes.enabled: "true"
+  management.health.readiness-state.enabled: "true"
+  management.health.liveness-state.enabled: "true"
+  # Logging Configuration
+  {{- if eq .Values.global.environment "production" }}
+  logging.level.root: "WARN"
+  logging.level.org.springframework: "WARN"
+  {{- else if eq .Values.global.environment "staging" }}
+  logging.level.root: "INFO"
+  logging.level.org.springframework: "INFO"
+  {{- else }}
+  logging.level.root: "DEBUG"
+  logging.level.org.springframework: "DEBUG"
+  {{- end }}
+  logging.pattern.console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+  logging.pattern.file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  # Azure Key Vault Integration
+  {{- if .Values.azureKeyVault.enabled }}
+  spring.cloud.azure.keyvault.secret.enabled: "true"
+  spring.cloud.azure.keyvault.secret.property-sources[0].endpoint: "https://{{ .Values.azureKeyVault.keyvaultName }}.vault.azure.net/"
+  spring.cloud.azure.keyvault.secret.property-sources[0].name: "{{ .Values.azureKeyVault.keyvaultName }}"
+  {{- end }}
+  # Environment-specific properties file
+  application-{{ .Values.global.environment }}.yml: |
+    spring:
+      profiles:
+        active: {{ .Values.global.environment }}
+      application:
+        name: {{ .Values.global.applicationName }}
+      {{- if .Values.azureKeyVault.enabled }}
+      cloud:
+        azure:
+          keyvault:
+            secret:
+              enabled: true
+              property-sources:
+                - endpoint: https://{{ .Values.azureKeyVault.keyvaultName }}.vault.azure.net/
+                  name: {{ .Values.azureKeyVault.keyvaultName }}
+      {{- end }}
+    server:
+      port: {{ .Values.service.port }}
+    management:
+      endpoints:
+        web:
+          exposure:
+            {{- if eq .Values.global.environment "production" }}
+            include: health,info,metrics,prometheus
+            {{- else }}
+            include: health,info,metrics,prometheus,env,configprops,beans,mappings
+            {{- end }}
+      endpoint:
+        health:
+          {{- if eq .Values.global.environment "production" }}
+          show-details: never
+          {{- else }}
+          show-details: always
+          {{- end }}
+          probes:
+            enabled: true
+      health:
+        readiness-state:
+          enabled: true
+        liveness-state:
+          enabled: true
+    logging:
+      level:
+        {{- if eq .Values.global.environment "production" }}
+        root: WARN
+        org.springframework: WARN
+        {{- else if eq .Values.global.environment "staging" }}
+        root: INFO
+        org.springframework: INFO
+        {{- else }}
+        root: DEBUG
+        org.springframework: DEBUG
+        {{- end }}
+      pattern:
+        console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+        file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+{{- end }}

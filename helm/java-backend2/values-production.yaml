@@ -1,0 +1,169 @@
+# Production Environment Values for Java Spring Boot Application
+
+global:
+  environment: production
+
+# High availability with multiple replicas
+replicaCount: 3
+
+image:
+  pullPolicy: IfNotPresent
+
+# Environment variables
+env:
+  - name: ENVIRONMENT
+    value: "production"
+  - name: APPLICATION_NAME
+    value: "java-app"
+  - name: SPRING_PROFILES_ACTIVE
+    value: "production"
+  - name: SERVER_PORT
+    value: "8080"
+  - name: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
+    value: "health,info,metrics,prometheus"  # Minimal actuator endpoints for security
+  - name: MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS
+    value: "never"  # Hide health details in production
+
+# ConfigMap for production
+configMap:
+  enabled: true
+  data:
+    LOG_LEVEL: "WARN"
+    DEBUG: "false"
+    JAVA_OPTS: "-Xms1g -Xmx2g -XX:+UseG1GC -XX:+UseStringDeduplication -XX:MaxGCPauseMillis=200 -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp"
+    SPRING_PROFILES_INCLUDE: "actuator"
+    JVM_METRICS_ENABLED: "true"
+
+# Production resource limits
+resources:
+  limits:
+    cpu: 2000m
+    memory: 4Gi
+  requests:
+    cpu: 1000m
+    memory: 2Gi
+
+# Strict health checks for production
+livenessProbe:
+  enabled: true
+  httpGet:
+    path: /actuator/health
+    port: 8080
+  initialDelaySeconds: 120
+  periodSeconds: 30
+  timeoutSeconds: 10
+  failureThreshold: 3
+
+readinessProbe:
+  enabled: true
+  httpGet:
+    path: /actuator/health/readiness
+    port: 8080
+  initialDelaySeconds: 60
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+# Production ingress configuration
+ingress:
+  enabled: true
+  pathPrefix: "java-app"
+  proxyBodySize: "1024m"
+  hosts:
+    - host: java-app.company.com
+
+# Production autoscaling
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Monitoring enabled
+monitoring:
+  enabled: true
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/actuator/prometheus"
+
+# Pod disruption budget for high availability
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+# Network policies enabled for security
+networkPolicy:
+  enabled: true
+
+# Anti-affinity for better distribution across nodes
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+            - key: app.kubernetes.io/name
+              operator: In
+              values:
+                - java-app
+        topologyKey: kubernetes.io/hostname
+
+# Production security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 2000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# Service account
+serviceAccount:
+  create: true
+  annotations:
+    # Add any production-specific annotations
+
+# Tolerations for dedicated nodes if needed
+tolerations: []
+
+# Node selector for production nodes
+nodeSelector:
+  environment: production
+
+# Azure Key Vault configuration for production
+azureKeyVault:
+  enabled: true
+  keyvaultName: "java-app-prod-kv"
+  tenantId: ""  # Will be provided by GitHub Actions
+  userAssignedIdentityID: ""  # Will be provided by GitHub Actions
+  mountPath: "/mnt/secrets-store"
+  secrets:
+    - objectName: "db-password"
+      objectAlias: "db-password"
+    - objectName: "api-key"
+      objectAlias: "api-key"
+    - objectName: "jwt-secret"
+      objectAlias: "jwt-secret"
+    - objectName: "redis-password"
+      objectAlias: "redis-password"
+  secretObjects:
+    - secretName: "app-secrets"
+      type: "Opaque"
+      data:
+        - objectName: "db-password"
+          key: "db-password"
+        - objectName: "api-key"
+          key: "api-key"
+        - objectName: "jwt-secret"
+          key: "jwt-secret"
+        - objectName: "redis-password"
+          key: "redis-password"
