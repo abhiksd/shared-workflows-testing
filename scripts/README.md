@@ -53,7 +53,7 @@ Version calculation and tagging:
 - **Shared Deploy Workflow**: 6 lines using `validate_and_set_deployment`
 - **Version Strategy Action**: 4 lines using `set_version_outputs`
 - **Check Changes Action**: 8 lines using `should_deploy_based_on_changes`
-- **Checkmarx Scan Action**: 183 lines using official Checkmarx AST action (based on user's example)
+- **Checkmarx Scan Action**: 177 lines using official Checkmarx AST action
 - **Azure Identity Check**: Uses centralized logging functions
 - **Health Check Script**: Uses `check_http_endpoint` utility
 - **Rollback Workflow**: 12 lines using utility functions

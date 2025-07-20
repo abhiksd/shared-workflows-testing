@@ -1,5 +1,5 @@
-name: 'Checkmarx Security Scan'
-description: 'Run Checkmarx AST security scan with vulnerability thresholds'
+name: 'Checkmarx Scan'
+description: 'Checkmarx security scanning with SAST, SCA, and KICS'
 
 inputs:
   application_name:
@@ -11,42 +11,30 @@ inputs:
   build_context:
     description: 'Build context path'
     required: true
-  checkmarx_url:
-    description: 'Checkmarx server URL'
-    required: true
-  checkmarx_client_id:
-    description: 'Checkmarx username'
-    required: true
-  checkmarx_client_secret:
-    description: 'Checkmarx password'
-    required: true
-  cx_tenant:
-    description: 'Checkmarx tenant'
-    required: true
   checkmarx_enabled:
-    description: 'Enable Checkmarx scan'
+    description: 'Enable Checkmarx scanning'
     required: false
     default: 'true'
-  checkmarx_scan_types:
-    description: 'Comma-separated scan types'
+  checkmarx_url:
+    description: 'Checkmarx server URL'
     required: false
-    default: 'sast,sca,kics'
+  cx_tenant:
+    description: 'Checkmarx tenant for OAuth2 authentication'
+    required: false
+  checkmarx_client_id:
+    description: 'Checkmarx OAuth2 client ID'
+    required: false
+  checkmarx_client_secret:
+    description: 'Checkmarx OAuth2 client secret'
+    required: false
+  checkmarx_scan_types:
+    description: 'Checkmarx scan types (comma-separated: sca,sast,kics)'
+    required: false
+    default: 'sca,sast,kics'
   checkmarx_sast_preset:
-    description: 'SAST scan preset'
+    description: 'Checkmarx SAST preset'
     required: false
     default: 'Checkmarx Default'
-  checkmarx_high_threshold:
-    description: 'Maximum high vulnerabilities'
-    required: false
-    default: '0'
-  checkmarx_medium_threshold:
-    description: 'Maximum medium vulnerabilities'
-    required: false
-    default: '5'
-  checkmarx_low_threshold:
-    description: 'Maximum low vulnerabilities'
-    required: false
-    default: '10'
   checkmarx_sca_resolver:
     description: 'Checkmarx SCA resolver'
     required: false
@@ -59,14 +47,23 @@ inputs:
     description: 'Fail build on security issues'
     required: false
     default: 'true'
+  checkmarx_high_threshold:
+    description: 'High severity threshold'
+    required: false
+    default: '0'
+  checkmarx_medium_threshold:
+    description: 'Medium severity threshold'
+    required: false
+    default: '5'
+  checkmarx_low_threshold:
+    description: 'Low severity threshold'
+    required: false
+    default: '10'
 
 outputs:
-  scan_status:
-    description: 'Scan status'
-    value: ${{ steps.results.outputs.status }}
   scan_id:
     description: 'Checkmarx scan ID'
-    value: ${{ steps.results.outputs.scan_id }}
+    value: ${{ steps.scan.outputs.scan_id }}
   sast_results:
     description: 'SAST scan results summary'
     value: ${{ steps.results.outputs.sast_results }}
@@ -79,32 +76,30 @@ outputs:
   overall_results:
     description: 'Combined scan results summary'
     value: ${{ steps.results.outputs.overall_results }}
-  critical_count:
-    description: 'Critical vulnerabilities count'
-    value: ${{ steps.results.outputs.critical-count }}
-  high_count:
-    description: 'High vulnerabilities count'
-    value: ${{ steps.results.outputs.high-count }}
+  scan_status:
+    description: 'Overall Checkmarx scan status'
+    value: ${{ steps.results.outputs.scan_status }}
 
 runs:
   using: 'composite'
   steps:
-    - name: Setup SCA Resolver (Java)
+    - name: Setup SCA Resolver
       if: inputs.checkmarx_enabled == 'true' && contains(inputs.checkmarx_scan_types, 'sca')
       shell: bash
       run: |
-        if [[ -f "pom.xml" || -f "build.gradle" ]]; then
+        if [[ "${{ inputs.application_type }}" == "java-springboot" && (-f "pom.xml" || -f "build.gradle") ]]; then
           echo "📦 Setup SCA for Java..."
           wget -q https://sca-downloads.s3.amazonaws.com/cli/2.7.2/ScaResolver-linux64.tar.gz
           tar -xzf ScaResolver-linux64.tar.gz && rm ScaResolver-linux64.tar.gz
-          ./ScaResolver offline -r ".cxsca-results.json" -s . -n "${{ github.repository }}"
+          ./ScaResolver offline -r ".cxsca-results.json" -s ${{ inputs.build_context }} -n "${{ inputs.application_name }}"
         fi
 
     - name: Run Checkmarx AST
+      id: scan
       if: inputs.checkmarx_enabled == 'true'
       uses: checkmarx/ast-github-action@86e9ae570a811f9a1fb85903647a307aa3bf6253
       with:
-        project_name: ${{ github.repository }}
+        project_name: ${{ inputs.application_name }}
         cx_server: ${{ inputs.checkmarx_url }}
         cx_user: ${{ inputs.checkmarx_client_id }}
         cx_password: ${{ inputs.checkmarx_client_secret }}
@@ -112,7 +107,7 @@ runs:
         cx_client_secret: ${{ inputs.checkmarx_client_secret }}
         additional_params: --scan-types ${{ inputs.checkmarx_scan_types }} --report-format sarif --output-path . --sast-preset-name "${{ inputs.checkmarx_sast_preset }}"
 
-    - name: Get Results
+    - name: Parse Results
       id: results
       if: inputs.checkmarx_enabled == 'true'
       shell: bash
@@ -124,7 +119,7 @@ runs:
         LOW=0
         
         # Parse SARIF results
-        for file in $(find . -name "*.sarif" 2>/dev/null | head -3); do
+        for file in $(find . -name "*.sarif" 2>/dev/null | head -5); do
           if [[ -f "$file" ]] && command -v jq >/dev/null 2>&1; then
             CRITICAL=$((CRITICAL + $(jq -r '[.runs[]?.results[]? | select(.level=="error")] | length' "$file" 2>/dev/null || echo "0")))
             HIGH=$((HIGH + $(jq -r '[.runs[]?.results[]? | select(.level=="warning")] | length' "$file" 2>/dev/null || echo "0")))
@@ -147,14 +142,13 @@ runs:
         
         # Set outputs
         echo "scan_id=$SCAN_ID" >> $GITHUB_OUTPUT
-        echo "status=$STATUS" >> $GITHUB_OUTPUT
         echo "sast_results=$SAST_RESULTS" >> $GITHUB_OUTPUT
         echo "sca_results=$SCA_RESULTS" >> $GITHUB_OUTPUT
         echo "kics_results=$KICS_RESULTS" >> $GITHUB_OUTPUT
         echo "overall_results=$OVERALL_RESULTS" >> $GITHUB_OUTPUT
-        echo "critical-count=$CRITICAL" >> $GITHUB_OUTPUT
-        echo "high-count=$HIGH" >> $GITHUB_OUTPUT
-        echo "🔒 Checkmarx: $STATUS | Vulnerabilities: $CRITICAL critical, $HIGH high"
+        echo "scan_status=$STATUS" >> $GITHUB_OUTPUT
+        
+        echo "🔒 Checkmarx: $STATUS | Vulnerabilities: $CRITICAL critical, $HIGH high, $MEDIUM medium, $LOW low"
 
     - name: Upload Results
       if: always() && inputs.checkmarx_enabled == 'true'
@@ -170,7 +164,7 @@ runs:
       if: inputs.checkmarx_enabled == 'true' && inputs.checkmarx_fail_build == 'true'
       shell: bash
       run: |
-        STATUS="${{ steps.results.outputs.status }}"
+        STATUS="${{ steps.results.outputs.scan_status }}"
         if [[ "$STATUS" == "FAILED" ]]; then
           echo "❌ Checkmarx scan failed - vulnerabilities exceed thresholds"
           exit 1
