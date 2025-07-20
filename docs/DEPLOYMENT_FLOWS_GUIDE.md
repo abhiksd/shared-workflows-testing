@@ -403,50 +403,247 @@ flowchart TD
 
 ## 📊 Monitoring Stack Deployment Flow
 
-### Dedicated Monitoring Workflow
+### Overview: Monitoring vs Application Deployments
+
+```mermaid
+graph TB
+    subgraph "Shared Workflows Repository"
+        A[monitoring-deploy.yml]
+        B[deploy-monitoring.yml - Reusable]
+        C[shared-deploy.yml - Apps Only]
+        D[shared-security-scan.yml]
+    end
+    
+    subgraph "Monitoring Events"
+        E[Push: helm/monitoring/** changes]
+        F[Push: monitoring/** changes] 
+        G[Manual: workflow_dispatch]
+    end
+    
+    subgraph "Application Events"
+        H[Push: apps/java-backend1/**]
+        I[Push: apps/nodejs-backend1/**]
+        J[Pull Request to main/develop]
+    end
+    
+    E --> A
+    F --> A
+    G --> A
+    
+    A --> B
+    
+    H --> C
+    I --> C
+    J --> K[apps/*/pr-security-check.yml]
+    
+    K --> D
+    
+    style A fill:#e3f2fd
+    style B fill:#fff3e0
+    style C fill:#c8e6c9
+    style D fill:#ffcdd2
+```
+
+### Monitoring Workflow Architecture
+
+**🏗️ Two-Layer Architecture:**
+
+1. **Caller Workflow**: `monitoring-deploy.yml` (in shared repository)
+2. **Shared Workflow**: `deploy-monitoring.yml` (reusable workflow)
+
+### Detailed Monitoring Deployment Flow
 
 ```mermaid
 flowchart TD
-    A[Monitoring config changes] --> B[monitoring-deploy.yml triggers]
+    A[Monitoring config changes detected] --> B[📍 Shared Repo: monitoring-deploy.yml triggers]
     B --> C[detect-changes job]
     
-    C --> D{Changes detected?}
-    D -->|No| E[no-changes-notification]
-    D -->|Yes| F{Determine deployment strategy}
+    C --> D{Changes in monitoring paths?}
+    D -->|No changes| E[no-changes-notification]
+    D -->|Changes detected| F[Determine deployment strategy]
     
-    F --> G{Branch/Manual input}
+    F --> G{Event Type & Branch}
     
-    G -->|develop branch| H[Deploy to Dev]
-    G -->|main branch| I[Deploy to Staging]
-    G -->|release branch| J[Deploy to Production]
-    G -->|manual 'all'| K[Deploy to All Environments]
+    G -->|Push to develop| H[should_deploy_dev = true]
+    G -->|Push to main| I[should_deploy_staging = true]
+    G -->|Push to release/*| J[should_deploy_production = true]
+    G -->|Manual dispatch: 'all'| K[Deploy to ALL environments]
+    G -->|Manual dispatch: specific env| L[Deploy to selected environment]
     
-    H --> L[deployment-summary]
-    I --> L
-    J --> L
-    K --> M[Deploy to Dev + Staging + Prod]
-    M --> L
+    H --> M[📍 Calls: deploy-monitoring.yml]
+    I --> N[📍 Calls: deploy-monitoring.yml]
+    J --> O[📍 Calls: deploy-monitoring.yml]
+    K --> P[📍 Calls: deploy-monitoring.yml 3x]
+    L --> Q[📍 Calls: deploy-monitoring.yml]
     
-    L --> N[✅ Monitoring deployment SUCCESS]
-    E --> O[⏭️ Monitoring deployment SKIPPED]
+    M --> R[Deploy to Dev AKS cluster]
+    N --> S[Deploy to Staging AKS cluster]
+    O --> T[Deploy to Production AKS cluster]
+    P --> U[Deploy to All AKS clusters]
+    Q --> V[Deploy to Selected AKS cluster]
     
-    style D fill:#e3f2fd
-    style E fill:#fff3e0
-    style N fill:#c8e6c9
+    R --> W[deployment-summary]
+    S --> W
+    T --> W
+    U --> W
+    V --> W
+    
+    W --> X[✅ Monitoring deployment SUCCESS]
+    E --> Y[⏭️ Monitoring deployment SKIPPED]
+    
+    style B fill:#e3f2fd
+    style M fill:#fff3e0
+    style N fill:#fff3e0
     style O fill:#fff3e0
+    style P fill:#fff3e0
+    style Q fill:#fff3e0
+    style X fill:#c8e6c9
+    style Y fill:#fff3e0
 ```
 
-**Key Features:**
-- **Smart Change Detection**: Only deploys when monitoring configs change
-- **Multi-Environment Support**: Can deploy to specific environments or all
-- **Manual Override**: Force deployment via workflow_dispatch
-- **Comprehensive Reporting**: Summary of all environment deployments
-- **Efficient**: No unnecessary deployments, prevents resource waste
+### 🎯 Monitoring Workflow Triggers
 
-**Monitoring Deployment Triggers:**
-- **Auto**: Changes to `helm/monitoring/**`, `monitoring/**`, or monitoring workflows
-- **Manual**: workflow_dispatch with environment selection (dev/staging/production/all)
-- **Branch-based**: develop→dev, main→staging, release→production
+#### **1. 📂 Automatic Triggers (Path-Based)**
+
+| File Path Changes | Trigger Event | Target Environment |
+|------------------|---------------|-------------------|
+| `helm/monitoring/**` | Push to develop | Dev environment |
+| `helm/monitoring/**` | Push to main | Staging environment |
+| `helm/monitoring/**` | Push to release/* | Production environment |
+| `monitoring/**` | Push to develop | Dev environment |
+| `monitoring/**` | Push to main | Staging environment |
+| `.github/workflows/*monitoring*.yml` | Push to any branch | Based on branch |
+
+#### **2. 🎮 Manual Triggers (workflow_dispatch)**
+
+```yaml
+# Manual deployment options
+Environment Options:
+- dev: Deploy only to dev environment
+- staging: Deploy only to staging environment  
+- production: Deploy only to production environment
+- all: Deploy to ALL environments simultaneously
+
+Force Deploy: true/false
+- true: Deploy even without config changes
+- false: Only deploy if changes detected
+```
+
+### 🏗️ Repository Structure & Workflow Placement
+
+#### **✅ Current Architecture (Recommended)**
+
+```
+shared-workflows-repo/
+├── .github/workflows/
+│   ├── monitoring-deploy.yml           # 📍 CALLER: Monitoring trigger workflow
+│   ├── deploy-monitoring.yml           # 📍 SHARED: Reusable monitoring deployment
+│   ├── shared-deploy.yml               # 📍 SHARED: Application deployment
+│   ├── shared-security-scan.yml        # 📍 SHARED: Security scanning
+│   └── pr-security-check.yml           # 📍 OLD: Being replaced by app-specific
+│   
+├── apps/java-backend1/
+│   └── .github/workflows/
+│       ├── deploy.yml                  # 📍 CALLER: Calls shared-deploy.yml
+│       └── pr-security-check.yml       # 📍 CALLER: Calls shared-security-scan.yml
+│       
+├── apps/nodejs-backend1/
+│   └── .github/workflows/
+│       ├── deploy.yml                  # 📍 CALLER: Calls shared-deploy.yml
+│       └── pr-security-check.yml       # 📍 CALLER: Calls shared-security-scan.yml
+```
+
+#### **🎯 Workflow Responsibilities**
+
+| Workflow | Type | Location | Purpose | Triggers |
+|----------|------|----------|---------|----------|
+| `monitoring-deploy.yml` | **CALLER** | Shared repo root | Monitor config changes & trigger deployments | Push to monitoring paths, manual dispatch |
+| `deploy-monitoring.yml` | **SHARED** | Shared repo root | Reusable monitoring deployment logic | Called by monitoring-deploy.yml |
+| `shared-deploy.yml` | **SHARED** | Shared repo root | Reusable app deployment logic | Called by apps/*/deploy.yml |
+| `apps/*/deploy.yml` | **CALLER** | Each app directory | Trigger app deployments | Push to app paths, manual dispatch |
+| `apps/*/pr-security-check.yml` | **CALLER** | Each app directory | Trigger security scans | Pull requests |
+
+### 🔄 Event Flow Examples
+
+#### **Example 1: Monitoring Configuration Change**
+
+```mermaid
+sequenceDiagram
+    participant Dev as Developer
+    participant Shared as shared-workflows-repo
+    participant Monitor as monitoring-deploy.yml
+    participant Deploy as deploy-monitoring.yml
+    participant AKS as AKS Cluster
+    
+    Dev->>Shared: Push changes to helm/monitoring/values.yaml
+    Shared->>Monitor: Triggers monitoring-deploy.yml
+    Monitor->>Monitor: detect-changes: monitoring_changed=true
+    Monitor->>Monitor: strategy: should_deploy_staging=true
+    Monitor->>Deploy: Calls deploy-monitoring.yml
+    Deploy->>AKS: Deploy monitoring stack to staging
+    Deploy->>Monitor: Returns success
+    Monitor->>Monitor: deployment-summary: ✅ SUCCESS
+```
+
+#### **Example 2: Application Deployment (No Monitoring)**
+
+```mermaid
+sequenceDiagram
+    participant Dev as Developer
+    participant App as apps/java-backend1
+    participant Shared as shared-workflows-repo
+    participant Deploy as shared-deploy.yml
+    participant AKS as AKS Cluster
+    
+    Dev->>App: Push changes to apps/java-backend1/src/**
+    App->>Shared: Calls shared-deploy.yml
+    Deploy->>Deploy: validate-environment
+    Deploy->>Deploy: maven-build, security scans
+    Deploy->>AKS: Deploy java-backend1 to staging
+    Deploy->>App: Returns success
+    
+    Note over Deploy,AKS: ❌ NO monitoring deployment triggered
+```
+
+### 🎯 Migration Strategy for Repository Split
+
+#### **When Migrating to Separate Repositories:**
+
+```
+# Current (Monorepo)
+shared-workflows-repo/
+├── .github/workflows/monitoring-deploy.yml     # ✅ STAYS in shared repo
+├── .github/workflows/deploy-monitoring.yml     # ✅ STAYS in shared repo
+└── apps/java-backend1/                        # 🔄 MOVES to separate repo
+
+# After Migration
+shared-workflows-repo/
+├── .github/workflows/monitoring-deploy.yml     # ✅ Remains for monitoring
+└── .github/workflows/deploy-monitoring.yml     # ✅ Remains for monitoring
+
+java-backend1-repo/
+├── .github/workflows/deploy.yml               # 🔄 Updated reference
+└── .github/workflows/pr-security-check.yml    # 🔄 Updated reference
+
+# Updated references in java-backend1-repo/deploy.yml:
+uses: shared-org/shared-workflows-repo/.github/workflows/shared-deploy.yml@main
+```
+
+### 🚨 Key Points
+
+#### **✅ Monitoring Workflows Stay in Shared Repo**
+- **Reason**: Monitoring affects all environments and applications
+- **Location**: `shared-workflows-repo/.github/workflows/`
+- **Triggers**: Only monitoring configuration changes
+
+#### **✅ Application Workflows Move with Apps**
+- **Reason**: Each team owns their deployment pipeline
+- **Location**: `{app-name}-repo/.github/workflows/`
+- **References**: Point to shared repo for reusable workflows
+
+#### **✅ No More Monitoring in App Deployments**
+- **Before**: Every app deployment triggered monitoring (wasteful)
+- **After**: Only monitoring changes trigger monitoring deployment (efficient)
 
 ---
 
@@ -610,6 +807,19 @@ flowchart TD
 | **Wrong environment deployment** | App in wrong cluster | Check branch naming and manual inputs |
 | **Missing secrets** | Authentication failures | Verify secrets configuration in repo |
 | **Build failures** | Compilation errors | Fix code issues, verify dependencies |
+| **Monitoring deploys on every app change** | Excessive monitoring updates | ✅ **Fixed**: Removed from shared-deploy.yml |
+| **Monitoring doesn't deploy** | Config changes ignored | Check file paths match monitoring-deploy.yml triggers |
+| **Wrong monitoring environment** | Deployed to wrong cluster | Verify branch corresponds to target environment |
+
+### Monitoring-Specific Troubleshooting
+
+| Issue | Symptoms | Root Cause | Solution |
+|-------|----------|------------|----------|
+| **Monitoring workflow doesn't trigger** | No deployment despite changes | Files not in monitored paths | Ensure changes are in `helm/monitoring/**` or `monitoring/**` |
+| **Monitoring deploys to wrong environment** | Dev config in production | Branch detection logic | Check if pushing to correct branch (develop→dev, main→staging) |
+| **Multiple monitoring deployments** | Race conditions, conflicts | Old shared-deploy.yml still has monitoring | Verify `deploy-monitoring` removed from shared-deploy.yml |
+| **Manual monitoring deployment fails** | workflow_dispatch doesn't work | Incorrect parameters | Check environment selection and force_deploy settings |
+| **No monitoring changes detected** | Workflow skips deployment | Change detection false negative | Use manual dispatch with `force_deploy: true` |
 
 ### Debug Commands
 
@@ -620,9 +830,22 @@ git log --oneline -10
 # Verify branch patterns
 git branch -a
 
-# Check workflow status
+# Check application workflow status
 gh workflow list
 gh run list --workflow=deploy.yml
+
+# Check monitoring workflow status
+gh run list --workflow=monitoring-deploy.yml
+gh run list --workflow=deploy-monitoring.yml
+
+# Check what files changed (for monitoring trigger debugging)
+git diff --name-only HEAD~1 HEAD | grep -E "^helm/monitoring/|^monitoring/|^\.github/workflows/.*monitoring.*\.yml$"
+
+# Manual monitoring deployment
+gh workflow run monitoring-deploy.yml -f environment=staging -f force_deploy=true
+
+# Check monitoring deployment logs
+gh run view --workflow=monitoring-deploy.yml
 ```
 
 ---
