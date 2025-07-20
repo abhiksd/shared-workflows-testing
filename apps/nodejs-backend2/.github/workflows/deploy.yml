@@ -1,0 +1,65 @@
+name: Deploy Node.js Backend 2 - Analytics Service
+
+permissions:
+  id-token: write
+  contents: read
+  actions: read
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'release/**'
+      - 'feature/**'
+    paths:
+      - 'apps/nodejs-backend2/**'
+      - 'helm/nodejs-backend2/**'
+      - '.github/workflows/deploy.yml'
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'apps/nodejs-backend2/**'
+      - 'helm/nodejs-backend2/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - production
+      force_deploy:
+        description: 'Force deployment even if no changes'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  # Deploy Node.js Backend 2 - Analytics Service
+  deploy:
+    uses: ./.github/workflows/shared-deploy.yml
+    with:
+      environment: ${{ github.event.inputs.environment || 'auto' }}
+      application_name: nodejs-backend2
+      application_type: nodejs
+      build_context: apps/nodejs-backend2
+      dockerfile_path: apps/nodejs-backend2/Dockerfile
+      helm_chart_path: helm/nodejs-backend2
+      force_deploy: ${{ github.event.inputs.force_deploy == 'true' }}
+      aks_cluster_name_dev: ${{ vars.AKS_CLUSTER_NAME_DEV }}
+      aks_resource_group_dev: ${{ vars.AKS_RESOURCE_GROUP_DEV }}
+      aks_cluster_name_sqe: ${{ vars.AKS_CLUSTER_NAME_DEV }}
+      aks_resource_group_sqe: ${{ vars.AKS_RESOURCE_GROUP_DEV }}
+      aks_cluster_name_prod: ${{ vars.AKS_CLUSTER_NAME_DEV }}
+      aks_resource_group_prod: ${{ vars.AKS_RESOURCE_GROUP_DEV }}
+    secrets:
+      ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+      KEYVAULT_NAME: ${{ secrets.KEYVAULT_NAME }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
