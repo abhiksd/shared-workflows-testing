@@ -26,7 +26,7 @@ on:
       - 'feature/**'  # Feature branch deployments
     paths:
       - 'apps/java-backend2/**'        # Source code changes
-      - 'helm/java-backend2/**'        # Helm chart changes
+      - 'helm/**'        # Helm chart changes
       - '.github/workflows/deploy.yml' # Workflow changes
 ```
 
@@ -67,7 +67,7 @@ jobs:
       application_type: java-springboot
       build_context: apps/java-backend2
       dockerfile_path: apps/java-backend2/Dockerfile
-      helm_chart_path: helm/java-backend2
+      helm_chart_path: helm
 ```
 
 ## 🌍 **Environment-Specific Deployments**

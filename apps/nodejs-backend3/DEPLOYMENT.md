@@ -26,7 +26,7 @@ on:
       - 'feature/**'  # Feature branch deployments
     paths:
       - 'apps/nodejs-backend3/**'        # Source code changes
-      - 'helm/nodejs-backend3/**'        # Helm chart changes
+      - 'helm/**'        # Helm chart changes
       - '.github/workflows/deploy.yml' # Workflow changes
 ```
 
@@ -67,7 +67,7 @@ jobs:
       application_type: nodejs
       build_context: apps/nodejs-backend3
       dockerfile_path: apps/nodejs-backend3/Dockerfile
-      helm_chart_path: helm/nodejs-backend3
+      helm_chart_path: helm
 ```
 
 ## 🌍 **Environment-Specific Deployments**

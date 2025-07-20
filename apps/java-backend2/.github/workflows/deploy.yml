@@ -14,7 +14,7 @@ on:
       - 'feature/**'
     paths:
       - 'apps/java-backend2/**'
-      - 'helm/java-backend2/**'
+      - 'helm/**'
       - '.github/workflows/deploy.yml'
   pull_request:
     branches:
@@ -22,7 +22,7 @@ on:
       - develop
     paths:
       - 'apps/java-backend2/**'
-      - 'helm/java-backend2/**'
+      - 'helm/**'
   workflow_dispatch:
     inputs:
       environment:
@@ -49,7 +49,7 @@ jobs:
       application_type: java-springboot
       build_context: apps/java-backend2
       dockerfile_path: apps/java-backend2/Dockerfile
-      helm_chart_path: helm/java-backend2
+      helm_chart_path: helm
       force_deploy: ${{ github.event.inputs.force_deploy == 'true' }}
       aks_cluster_name_dev: ${{ vars.AKS_CLUSTER_NAME_DEV }}
       aks_resource_group_dev: ${{ vars.AKS_RESOURCE_GROUP_DEV }}
