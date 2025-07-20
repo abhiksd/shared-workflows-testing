@@ -1,10 +1,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "nodejs-app.fullname" . }}
+  name: {{ include "nodejs-backend2.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "nodejs-app.labels" . | nindent 4 }}
+    {{- include "nodejs-backend2.labels" . | nindent 4 }}
   annotations:
     deployment.kubernetes.io/revision: "{{ .Release.Revision }}"
     app.kubernetes.io/managed-by: {{ .Release.Service }}
@@ -14,7 +14,7 @@ spec:
   {{- end }}
   selector:
     matchLabels:
-      {{- include "nodejs-app.selectorLabels" . | nindent 6 }}
+      {{- include "nodejs-backend2.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
@@ -28,7 +28,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:
-        {{- include "nodejs-app.selectorLabels" . | nindent 8 }}
+        {{- include "nodejs-backend2.selectorLabels" . | nindent 8 }}
         {{- if .Values.azureKeyVault.enabled }}
         azure.workload.identity/use: "true"
         {{- end }}
@@ -37,7 +37,7 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "nodejs-app.serviceAccountName" . }}
+      serviceAccountName: {{ include "nodejs-backend2.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
@@ -68,13 +68,13 @@ spec:
             - name: LOG_LEVEL
               valueFrom:
                 configMapKeyRef:
-                  name: {{ include "nodejs-app.fullname" . }}-config
+                  name: {{ include "nodejs-backend2.fullname" . }}-config
                   key: LOG_LEVEL
             {{- if .Values.configMap.data.DEBUG }}
             - name: DEBUG
               valueFrom:
                 configMapKeyRef:
-                  name: {{ include "nodejs-app.fullname" . }}-config
+                  name: {{ include "nodejs-backend2.fullname" . }}-config
                   key: DEBUG
             {{- end }}
             # Performance Configuration
@@ -82,7 +82,7 @@ spec:
             - name: NODE_OPTIONS
               valueFrom:
                 configMapKeyRef:
-                  name: {{ include "nodejs-app.fullname" . }}-config
+                  name: {{ include "nodejs-backend2.fullname" . }}-config
                   key: NODE_OPTIONS
             {{- end }}
             # Azure Key Vault Secrets Path
@@ -106,7 +106,7 @@ spec:
             {{- end }}
             {{- if .Values.configMap.enabled }}
             - name: CONFIG_MAP_NAME
-              value: {{ include "nodejs-app.fullname" . }}-config
+              value: {{ include "nodejs-backend2.fullname" . }}-config
             {{- end }}
           {{- if .Values.livenessProbe.enabled }}
           livenessProbe:
@@ -151,12 +151,12 @@ spec:
             driver: secrets-store.csi.k8s.io
             readOnly: true
             volumeAttributes:
-              secretProviderClass: {{ include "nodejs-app.fullname" . }}-keyvault
+              secretProviderClass: {{ include "nodejs-backend2.fullname" . }}-keyvault
         {{- end }}
         {{- if .Values.configMap.enabled }}
         - name: config-volume
           configMap:
-            name: {{ include "nodejs-app.fullname" . }}-config
+            name: {{ include "nodejs-backend2.fullname" . }}-config
             defaultMode: 0644
         {{- end }}
         {{- if .Values.volumes }}
@@ -179,15 +179,15 @@ spec:
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ include "nodejs-app.fullname" . }}
+  name: {{ include "nodejs-backend2.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "nodejs-app.labels" . | nindent 4 }}
+    {{- include "nodejs-backend2.labels" . | nindent 4 }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ include "nodejs-app.fullname" . }}
+    name: {{ include "nodejs-backend2.fullname" . }}
   minReplicas: {{ .Values.autoscaling.minReplicas }}
   maxReplicas: {{ .Values.autoscaling.maxReplicas }}
   metrics:

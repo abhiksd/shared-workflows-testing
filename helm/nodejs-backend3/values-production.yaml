@@ -1,82 +1,42 @@
-# Production Environment Values for Node.js Application
-
+# Production environment values for nodejs-backend3
 global:
   environment: production
+  applicationName: nodejs-backend3
+  applicationType: nodejs
 
-# High availability with multiple replicas
 replicaCount: 3
 
 image:
-  pullPolicy: IfNotPresent
+  repository: myregistry.azurecr.io/nodejs-backend3
+  tag: "production-latest"
 
-# Environment variables
+ingress:
+  enabled: true
+  pathPrefix: "backend3"
+  proxyBodySize: "1024m"
+  hosts:
+    - host: production.mydomain.com
+
+resources:
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+  requests:
+    cpu: 1000m
+    memory: 1Gi
+
 env:
   - name: ENVIRONMENT
     value: "production"
   - name: APPLICATION_NAME
-    value: "nodejs-app"
-  - name: NODE_ENV
-    value: "production"
+    value: "nodejs-backend3"
   - name: PORT
     value: "3000"
-  - name: DEBUG_MODE
-    value: "false"
-  - name: PERFORMANCE_MONITORING
-    value: "true"
-  - name: SECURITY_MODE
-    value: "strict"
+  - name: NODE_ENV
+    value: "production"
+  - name: LOG_LEVEL
+    value: "warn"
 
-# ConfigMap for production
-configMap:
-  enabled: true
-  data:
-    LOG_LEVEL: "warn"
-    DEBUG: "false"
-    NODE_OPTIONS: "--max-old-space-size=2048 --optimize-for-size"
-    PERFORMANCE_MONITORING: "true"
-    METRICS_ENABLED: "true"
-    SECURITY_HEADERS: "true"
-    REQUEST_LOGGING: "false"
-
-# Production resource limits
-resources:
-  limits:
-    cpu: 1000m
-    memory: 2Gi
-  requests:
-    cpu: 500m
-    memory: 1Gi
-
-# Strict health checks for production
-livenessProbe:
-  enabled: true
-  httpGet:
-    path: /health
-    port: 3000
-  initialDelaySeconds: 60
-  periodSeconds: 30
-  timeoutSeconds: 10
-  failureThreshold: 3
-
-readinessProbe:
-  enabled: true
-  httpGet:
-    path: /ready
-    port: 3000
-  initialDelaySeconds: 30
-  periodSeconds: 5
-  timeoutSeconds: 3
-  failureThreshold: 3
-
-# Production ingress configuration
-ingress:
-  enabled: true
-  pathPrefix: "nodejs-app"
-  proxyBodySize: "1024m"
-  hosts:
-    - host: nodejs-app.company.com
-
-# Production autoscaling
 autoscaling:
   enabled: true
   minReplicas: 3
@@ -84,90 +44,11 @@ autoscaling:
   targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 80
 
-# Monitoring enabled
 monitoring:
   enabled: true
-  annotations:
-    prometheus.io/scrape: "true"
-    prometheus.io/port: "3000"
-    prometheus.io/path: "/metrics"
+  servicemonitor:
+    enabled: true
 
-# Pod disruption budget for high availability
 podDisruptionBudget:
   enabled: true
   minAvailable: 2
-
-# Network policies enabled for security
-networkPolicy:
-  enabled: true
-
-# Anti-affinity for better distribution across nodes
-affinity:
-  podAntiAffinity:
-    requiredDuringSchedulingIgnoredDuringExecution:
-      - labelSelector:
-          matchExpressions:
-            - key: app.kubernetes.io/name
-              operator: In
-              values:
-                - nodejs-app
-        topologyKey: kubernetes.io/hostname
-
-# Production security context
-podSecurityContext:
-  runAsNonRoot: true
-  runAsUser: 1000
-  fsGroup: 2000
-  seccompProfile:
-    type: RuntimeDefault
-
-securityContext:
-  allowPrivilegeEscalation: false
-  capabilities:
-    drop:
-      - ALL
-  readOnlyRootFilesystem: true
-  runAsNonRoot: true
-  runAsUser: 1000
-
-# Service account
-serviceAccount:
-  create: true
-  annotations:
-    # Add any production-specific annotations
-
-# Tolerations for dedicated nodes if needed
-tolerations: []
-
-# Node selector for production nodes
-nodeSelector:
-  environment: production
-
-# Azure Key Vault configuration for production
-azureKeyVault:
-  enabled: true
-  keyvaultName: "nodejs-app-prod-kv"
-  tenantId: ""  # Will be provided by GitHub Actions
-  userAssignedIdentityID: ""  # Will be provided by GitHub Actions
-  mountPath: "/mnt/secrets-store"
-  secrets:
-    - objectName: "db-connection-string"
-      objectAlias: "db-connection-string"
-    - objectName: "api-key"
-      objectAlias: "api-key"
-    - objectName: "session-secret"
-      objectAlias: "session-secret"
-    - objectName: "redis-url"
-      objectAlias: "redis-url"
-  secretObjects:
-    - secretName: "app-secrets"
-      type: "Opaque"
-      data:
-        - objectName: "db-connection-string"
-          key: "db-connection-string"
-        - objectName: "api-key"
-          key: "api-key"
-        - objectName: "session-secret"
-          key: "session-secret"
-        - objectName: "redis-url"
-          key: "redis-url"

@@ -2,10 +2,10 @@
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ include "nodejs-app.fullname" . }}
+  name: {{ include "nodejs-backend3.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "nodejs-app.labels" . | nindent 4 }}
+    {{- include "nodejs-backend3.labels" . | nindent 4 }}
 spec:
   {{- if .Values.podDisruptionBudget.minAvailable }}
   minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
@@ -15,5 +15,5 @@ spec:
   {{- end }}
   selector:
     matchLabels:
-      {{- include "nodejs-app.selectorLabels" . | nindent 6 }}
+      {{- include "nodejs-backend3.selectorLabels" . | nindent 6 }}
 {{- end }}

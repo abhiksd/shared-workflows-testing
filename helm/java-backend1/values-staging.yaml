@@ -1,39 +1,22 @@
-# Staging Environment Values for Java Spring Boot Application
-
+# Staging environment values for java-backend1
 global:
   environment: staging
+  applicationName: java-backend1
+  applicationType: java-springboot
 
-# Multiple replicas for testing load balancing
 replicaCount: 2
 
 image:
-  pullPolicy: IfNotPresent
+  repository: myregistry.azurecr.io/java-backend1
+  tag: "staging-latest"
 
-# Environment variables
-env:
-  - name: ENVIRONMENT
-    value: "staging"
-  - name: APPLICATION_NAME
-    value: "java-app"
-  - name: SPRING_PROFILES_ACTIVE
-    value: "staging"
-  - name: SERVER_PORT
-    value: "8080"
-  - name: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
-    value: "health,info,metrics,prometheus,env,configprops"  # Extended for staging testing
-  - name: MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS
-    value: "when-authorized"
-
-# ConfigMap for staging
-configMap:
+ingress:
   enabled: true
-  data:
-    LOG_LEVEL: "INFO"
-    DEBUG: "false"
-    JAVA_OPTS: "-Xms512m -Xmx1g -XX:+UseG1GC -XX:+UseStringDeduplication -XX:MaxGCPauseMillis=200"
-    SPRING_PROFILES_INCLUDE: "actuator"
+  pathPrefix: "backend1"
+  proxyBodySize: "1024m"
+  hosts:
+    - host: staging.mydomain.com
 
-# Production-like resource limits
 resources:
   limits:
     cpu: 1000m
@@ -42,74 +25,24 @@ resources:
     cpu: 500m
     memory: 1Gi
 
-# Tighter health checks
-livenessProbe:
-  enabled: true
-  httpGet:
-    path: /actuator/health
-    port: 8080
-  initialDelaySeconds: 60
-  periodSeconds: 10
-  timeoutSeconds: 5
-  failureThreshold: 3
+env:
+  - name: ENVIRONMENT
+    value: "staging"
+  - name: APPLICATION_NAME
+    value: "java-backend1"
+  - name: SERVER_PORT
+    value: "8080"
+  - name: SPRING_PROFILES_ACTIVE
+    value: "staging"
+  - name: LOG_LEVEL
+    value: "INFO"
 
-readinessProbe:
-  enabled: true
-  httpGet:
-    path: /actuator/health/readiness
-    port: 8080
-  initialDelaySeconds: 30
-  periodSeconds: 5
-  timeoutSeconds: 3
-  failureThreshold: 3
-
-# Ingress configuration
-ingress:
-  enabled: true
-  pathPrefix: "java-app"
-  proxyBodySize: "1024m"
-  hosts:
-    - host: java-app-staging.company.com
-
-# Enable autoscaling for staging
 autoscaling:
   enabled: true
   minReplicas: 2
   maxReplicas: 5
-  targetCPUUtilizationPercentage: 70
-  targetMemoryUtilizationPercentage: 80
 
-# Monitoring enabled
 monitoring:
   enabled: true
-
-# Pod disruption budget for availability testing
-podDisruptionBudget:
-  enabled: true
-  minAvailable: 1
-
-# Network policy enabled for security testing
-networkPolicy:
-  enabled: true
-
-# Anti-affinity for better distribution
-affinity:
-  podAntiAffinity:
-    preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 100
-        podAffinityTerm:
-          labelSelector:
-            matchExpressions:
-              - key: app.kubernetes.io/name
-                operator: In
-                values:
-                  - java-app
-          topologyKey: kubernetes.io/hostname
-
-# Resource quotas and limits
-podSecurityContext:
-  runAsNonRoot: true
-  runAsUser: 1000
-  fsGroup: 2000
-  seccompProfile:
-    type: RuntimeDefault
+  servicemonitor:
+    enabled: true

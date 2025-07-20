@@ -1,10 +1,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "java-app.fullname" . }}
+  name: {{ include "java-backend1.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "java-app.labels" . | nindent 4 }}
+    {{- include "java-backend1.labels" . | nindent 4 }}
   annotations:
     deployment.kubernetes.io/revision: "{{ .Release.Revision }}"
     app.kubernetes.io/managed-by: {{ .Release.Service }}
@@ -14,7 +14,7 @@ spec:
   {{- end }}
   selector:
     matchLabels:
-      {{- include "java-app.selectorLabels" . | nindent 6 }}
+      {{- include "java-backend1.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
@@ -28,7 +28,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:
-        {{- include "java-app.selectorLabels" . | nindent 8 }}
+        {{- include "java-backend1.selectorLabels" . | nindent 8 }}
         {{- if .Values.azureKeyVault.enabled }}
         azure.workload.identity/use: "true"
         {{- end }}
@@ -37,7 +37,7 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "java-app.serviceAccountName" . }}
+      serviceAccountName: {{ include "java-backend1.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
@@ -68,12 +68,12 @@ spec:
             - name: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
               valueFrom:
                 configMapKeyRef:
-                  name: {{ include "java-app.fullname" . }}-config
+                  name: {{ include "java-backend1.fullname" . }}-config
                   key: management.endpoints.web.exposure.include
             - name: MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS
               valueFrom:
                 configMapKeyRef:
-                  name: {{ include "java-app.fullname" . }}-config
+                  name: {{ include "java-backend1.fullname" . }}-config
                   key: management.endpoint.health.show-details
             - name: MANAGEMENT_SERVER_PORT
               value: "{{ .Values.service.port }}"
@@ -82,20 +82,20 @@ spec:
             - name: JAVA_OPTS
               valueFrom:
                 configMapKeyRef:
-                  name: {{ include "java-app.fullname" . }}-config
+                  name: {{ include "java-backend1.fullname" . }}-config
                   key: JAVA_OPTS
             {{- end }}
             # Logging Configuration
             - name: LOGGING_LEVEL_ROOT
               valueFrom:
                 configMapKeyRef:
-                  name: {{ include "java-app.fullname" . }}-config
+                  name: {{ include "java-backend1.fullname" . }}-config
                   key: LOG_LEVEL
             {{- if .Values.configMap.data.DEBUG }}
             - name: DEBUG
               valueFrom:
                 configMapKeyRef:
-                  name: {{ include "java-app.fullname" . }}-config
+                  name: {{ include "java-backend1.fullname" . }}-config
                   key: DEBUG
             {{- end }}
             # Azure Key Vault Secrets Path
@@ -112,7 +112,7 @@ spec:
             {{- end }}
             {{- if .Values.configMap.enabled }}
             - name: CONFIG_MAP_NAME
-              value: {{ include "java-app.fullname" . }}-config
+              value: {{ include "java-backend1.fullname" . }}-config
             {{- end }}
           {{- if .Values.livenessProbe.enabled }}
           livenessProbe:
@@ -157,12 +157,12 @@ spec:
             driver: secrets-store.csi.k8s.io
             readOnly: true
             volumeAttributes:
-              secretProviderClass: {{ include "java-app.fullname" . }}-keyvault
+              secretProviderClass: {{ include "java-backend1.fullname" . }}-keyvault
         {{- end }}
         {{- if .Values.configMap.enabled }}
         - name: config-volume
           configMap:
-            name: {{ include "java-app.fullname" . }}-config
+            name: {{ include "java-backend1.fullname" . }}-config
             defaultMode: 0644
         {{- end }}
         {{- if .Values.volumes }}
@@ -185,15 +185,15 @@ spec:
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ include "java-app.fullname" . }}
+  name: {{ include "java-backend1.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "java-app.labels" . | nindent 4 }}
+    {{- include "java-backend1.labels" . | nindent 4 }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ include "java-app.fullname" . }}
+    name: {{ include "java-backend1.fullname" . }}
   minReplicas: {{ .Values.autoscaling.minReplicas }}
   maxReplicas: {{ .Values.autoscaling.maxReplicas }}
   metrics:

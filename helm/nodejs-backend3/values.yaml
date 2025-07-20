@@ -1,11 +1,11 @@
-# Default values for nodejs-app.
+# Default values for nodejs-backend3.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
 # Global configuration
 global:
   environment: dev
-  applicationName: nodejs-app
+  applicationName: nodejs-backend3
   applicationType: nodejs
 
 # Replica count
@@ -13,7 +13,7 @@ replicaCount: 1
 
 # Image configuration
 image:
-  repository: myregistry.azurecr.io/nodejs-app
+  repository: myregistry.azurecr.io/nodejs-backend3
   pullPolicy: IfNotPresent
   tag: "latest"
 
@@ -54,11 +54,13 @@ service:
 
 # Ingress configuration
 ingress:
-  enabled: false
-  pathPrefix: "nodejs-app"
+  enabled: true
+  pathPrefix: "backend3"
   proxyBodySize: "1024m"
   hosts:
-    - host: nodejs-app.local
+    - host: dev.mydomain.com
+    - host: staging.mydomain.com
+    - host: production.mydomain.com
 
 # Resource limits and requests
 resources:
@@ -91,7 +93,7 @@ env:
   - name: ENVIRONMENT
     value: "dev"
   - name: APPLICATION_NAME
-    value: "nodejs-app"
+    value: "nodejs-backend3"
   - name: PORT
     value: "3000"
   - name: NODE_ENV

@@ -2,10 +2,10 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: {{ include "nodejs-app.fullname" . }}
+  name: {{ include "nodejs-backend1.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "nodejs-app.labels" . | nindent 4 }}
+    {{- include "nodejs-backend1.labels" . | nindent 4 }}
     {{- if .Values.monitoring.serviceMonitor.labels }}
     {{- toYaml .Values.monitoring.serviceMonitor.labels | nindent 4 }}
     {{- end }}
@@ -16,7 +16,7 @@ metadata:
 spec:
   selector:
     matchLabels:
-      {{- include "nodejs-app.selectorLabels" . | nindent 6 }}
+      {{- include "nodejs-backend1.selectorLabels" . | nindent 6 }}
   endpoints:
     - port: metrics
       path: /metrics

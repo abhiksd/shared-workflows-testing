@@ -2,10 +2,10 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: {{ include "java-app.fullname" . }}
+  name: {{ include "java-backend1.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "java-app.labels" . | nindent 4 }}
+    {{- include "java-backend1.labels" . | nindent 4 }}
     {{- if .Values.monitoring.serviceMonitor.labels }}
     {{- toYaml .Values.monitoring.serviceMonitor.labels | nindent 4 }}
     {{- end }}
@@ -16,7 +16,7 @@ metadata:
 spec:
   selector:
     matchLabels:
-      {{- include "java-app.selectorLabels" . | nindent 6 }}
+      {{- include "java-backend1.selectorLabels" . | nindent 6 }}
   endpoints:
     - port: metrics
       path: /actuator/prometheus

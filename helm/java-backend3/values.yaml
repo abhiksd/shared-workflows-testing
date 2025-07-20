@@ -1,11 +1,11 @@
-# Default values for java-app.
+# Default values for java-backend3.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
 # Global configuration
 global:
   environment: dev
-  applicationName: java-app
+  applicationName: java-backend3
   applicationType: java-springboot
 
 # Replica count
@@ -13,7 +13,7 @@ replicaCount: 1
 
 # Image configuration
 image:
-  repository: myregistry.azurecr.io/java-app
+  repository: myregistry.azurecr.io/java-backend3
   pullPolicy: IfNotPresent
   tag: "latest"
 
@@ -54,11 +54,13 @@ service:
 
 # Ingress configuration
 ingress:
-  enabled: false
-  pathPrefix: "java-app"
+  enabled: true
+  pathPrefix: "backend3"
   proxyBodySize: "1024m"
   hosts:
-    - host: java-app.local
+    - host: dev.mydomain.com
+    - host: staging.mydomain.com
+    - host: production.mydomain.com
 
 # Resource limits and requests
 resources:
@@ -91,7 +93,7 @@ env:
   - name: ENVIRONMENT
     value: "dev"
   - name: APPLICATION_NAME
-    value: "java-app"
+    value: "java-backend3"
   - name: SERVER_PORT
     value: "8080"
   - name: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
