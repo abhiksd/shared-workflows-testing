@@ -42,11 +42,10 @@ on:
 jobs:
   # Deploy Node.js Backend 3 - File Management Service
   deploy:
-    uses: ./.github/workflows/shared-deploy.yml
+    uses: ./.github/workflows/shared-deploy-nodejs.yml
     with:
       environment: ${{ github.event.inputs.environment || 'auto' }}
       application_name: nodejs-backend3
-      application_type: nodejs
       build_context: apps/nodejs-backend3
       dockerfile_path: apps/nodejs-backend3/Dockerfile
       helm_chart_path: helm

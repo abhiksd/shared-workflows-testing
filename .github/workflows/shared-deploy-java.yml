@@ -1,0 +1,413 @@
+name: Shared Java Application Deployment
+permissions:
+  id-token: write
+  contents: read
+  actions: read
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Target environment (dev, staging, production)'
+        required: true
+        type: string
+      application_name:
+        description: 'Application name'
+        required: true
+        type: string
+      build_context:
+        description: 'Docker build context path'
+        required: false
+        type: string
+        default: '.'
+      dockerfile_path:
+        description: 'Path to Dockerfile'
+        required: false
+        type: string
+        default: 'Dockerfile'
+      helm_chart_path:
+        description: 'Path to Helm chart'
+        required: false
+        type: string
+        default: 'helm'
+      force_deploy:
+        description: 'Force deployment even if no changes detected'
+        required: false
+        type: boolean
+        default: false
+      java_version:
+        description: 'Java version to use'
+        required: false
+        type: string
+        default: '21'
+      maven_profile:
+        description: 'Maven profile to use'
+        required: false
+        type: string
+        default: 'default'
+      aks_cluster_name_dev:
+        description: 'AKS Dev Cluster name'
+        required: true
+        type: string
+      aks_resource_group_dev:
+        description: 'AKS Dev RG name'
+        required: true
+        type: string
+      aks_cluster_name_sqe:
+        description: 'AKS SQE Cluster name'
+        required: true
+        type: string
+      aks_resource_group_sqe:
+        description: 'AKS SQE RG name'
+        required: true
+        type: string
+      aks_cluster_name_prod:
+        description: 'AKS Prod Cluster name'
+        required: true
+        type: string
+      aks_resource_group_prod:
+        description: 'AKS Prod RG name'
+        required: true
+        type: string
+    secrets:
+      AZURE_CLIENT_ID:
+        description: 'Azure Client ID'
+        required: true
+      AZURE_TENANT_ID:
+        description: 'Azure Tenant ID'
+        required: true
+      AZURE_SUBSCRIPTION_ID:
+        description: 'Azure Subscription ID'
+        required: true
+      ACR_LOGIN_SERVER:
+        description: 'Azure Container Registry server'
+        required: true
+      KEYVAULT_NAME:
+        description: 'Azure KeyVault name'
+        required: true
+      SONAR_TOKEN:
+        description: 'SonarQube token'
+        required: false
+      SONAR_HOST_URL:
+        description: 'SonarQube server URL'
+        required: false
+      CHECKMARX_URL:
+        description: 'Checkmarx server URL'
+        required: false
+      CHECKMARX_USERNAME:
+        description: 'Checkmarx username'
+        required: false
+      CHECKMARX_PASSWORD:
+        description: 'Checkmarx password'
+        required: false
+
+env:
+  REGISTRY: ${{ secrets.ACR_LOGIN_SERVER }}
+  
+jobs:
+  validate-environment:
+    runs-on: ubuntu-latest
+    outputs:
+      should_deploy: ${{ steps.check.outputs.should_deploy }}
+      target_environment: ${{ steps.check.outputs.target_environment }}
+      aks_cluster_name_1: ${{ steps.check.outputs.aks_cluster_name }}
+      aks_resource_group_1: ${{ steps.check.outputs.aks_resource_group }}
+    steps:
+      - name: Validate environment and branch rules
+        id: check
+        run: |
+          ENVIRONMENT="${{ inputs.environment }}"
+          GITHUB_REF="${{ github.ref }}"
+          EVENT_NAME="${{ github.event_name }}"
+          
+          echo "🚀 Java Application Deployment Validation"
+          echo "Checking deployment rules for environment: $ENVIRONMENT"
+          echo "GitHub ref: $GITHUB_REF"
+          echo "Event name: $EVENT_NAME"
+          
+          SHOULD_DEPLOY="false"
+          TARGET_ENV=""
+          AKS_CLUSTER=""
+          AKS_RG=""
+          
+          # Auto-detect environment if 'auto' is specified
+          if [[ "$ENVIRONMENT" == "auto" ]]; then
+            if [[ "$GITHUB_REF" == "refs/heads/N630-6258_Helm_deploy" ]]; then
+              TARGET_ENV="dev"
+            elif [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+              TARGET_ENV="sqe"
+            elif [[ "$GITHUB_REF" == refs/heads/release/* ]] || [[ "$GITHUB_REF" == refs/tags/* ]]; then
+              TARGET_ENV="prod"
+            else
+              echo "❌ Auto environment detection failed: unsupported branch $GITHUB_REF"
+              TARGET_ENV="unknown"
+            fi
+            echo "🔍 Auto-detected environment: $TARGET_ENV"
+          else
+            TARGET_ENV="$ENVIRONMENT"
+            echo "📝 Using specified environment: $TARGET_ENV"
+          fi
+          
+          # Validate deployment rules based on target environment
+          case "$TARGET_ENV" in
+            "dev")
+              if [[ "$GITHUB_REF" == "refs/heads/N630-6258_Helm_deploy" ]] || [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+                SHOULD_DEPLOY="true"
+                AKS_CLUSTER="${{ inputs.aks_cluster_name_dev }}"
+                AKS_RG="${{ inputs.aks_resource_group_dev }}"
+                echo "✅ Dev deployment approved: develop branch or manual trigger"
+              else
+                echo "❌ Dev deployment blocked: must be develop branch or manual trigger"
+              fi
+              ;;
+            "staging")
+              if [[ "$GITHUB_REF" == "refs/heads/main" ]] || [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+                SHOULD_DEPLOY="true"
+                AKS_CLUSTER="${{ inputs.aks_cluster_name_sqe }}"
+                AKS_RG="${{ inputs.aks_resource_group_sqe }}"
+                echo "✅ Staging deployment approved: main branch or manual trigger"
+              else
+                echo "❌ Staging deployment blocked: must be main branch or manual trigger"
+              fi
+              ;;
+            "production")
+              if [[ "$GITHUB_REF" == refs/heads/release/* ]] || [[ "$GITHUB_REF" == refs/tags/* ]] || [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+                SHOULD_DEPLOY="true"
+                AKS_CLUSTER="${{ inputs.aks_cluster_name_prod }}"
+                AKS_RG="${{ inputs.aks_resource_group_prod }}"
+                echo "✅ Production deployment approved: release branch, tag, or manual trigger"
+              else
+                echo "❌ Production deployment blocked: must be release branch, tag, or manual trigger"
+              fi
+              ;;
+            *)
+              echo "❌ Invalid environment: $TARGET_ENV"
+              ;;
+          esac
+          
+          echo "📊 Java App validation results:"
+          echo "   - Should deploy: $SHOULD_DEPLOY"
+          echo "   - Target environment: $TARGET_ENV"
+          echo "   - AKS cluster name: $AKS_CLUSTER"
+          echo "   - AKS resource group: $AKS_RG"
+          
+          echo "should_deploy=$SHOULD_DEPLOY" >> $GITHUB_OUTPUT
+          echo "target_environment=$TARGET_ENV" >> $GITHUB_OUTPUT
+          echo "aks_cluster_name=$AKS_CLUSTER" >> $GITHUB_OUTPUT
+          echo "aks_resource_group=$AKS_RG" >> $GITHUB_OUTPUT
+
+  setup:
+    runs-on: ubuntu-latest
+    needs: validate-environment
+    if: needs.validate-environment.outputs.should_deploy == 'true'
+    outputs:
+      should_deploy: ${{ steps.changes.outputs.should_deploy }}
+      image_tag: ${{ steps.version.outputs.image_tag }}
+      helm_version: ${{ steps.version.outputs.helm_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for changes
+        id: changes
+        uses: ./.github/actions/check-changes
+        with:
+          application_name: ${{ inputs.application_name }}
+          build_context: ${{ inputs.build_context }}
+          force_deploy: ${{ inputs.force_deploy }}
+
+      - name: Generate version strategy
+        id: version
+        uses: ./.github/actions/version-strategy
+        with:
+          environment: ${{ needs.validate-environment.outputs.target_environment }}
+          application_name: ${{ inputs.application_name }}
+
+  maven-build:
+    runs-on: ubuntu-latest
+    needs: [validate-environment, setup]
+    if: needs.validate-environment.outputs.should_deploy == 'true' && needs.setup.outputs.should_deploy == 'true'
+    outputs:
+      jar_artifact: ${{ steps.maven.outputs.artifact_name }}
+      build_version: ${{ steps.maven.outputs.build_version }}
+    steps:
+      - name: Clean workspace
+        uses: ./.github/actions/workspace-cleanup
+        with:
+          cleanup_docker: 'false'
+          cleanup_temp: 'true'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Java application with Maven
+        id: maven
+        uses: ./.github/actions/maven-build
+        with:
+          application_name: ${{ inputs.application_name }}
+          build_context: ${{ inputs.build_context }}
+          java_version: ${{ inputs.java_version }}
+          maven_profile: ${{ inputs.maven_profile }}
+          run_tests: 'false'
+          upload_artifacts: 'true'
+
+  sonar-scan:
+    runs-on: ubuntu-latest
+    needs: [validate-environment, setup, maven-build]
+    if: needs.validate-environment.outputs.should_deploy == 'true' && needs.setup.outputs.should_deploy == 'true' && !failure() && !cancelled()
+    outputs:
+      scan_status: ${{ steps.sonar.outputs.scan_status }}
+      quality_gate_status: ${{ steps.sonar.outputs.quality_gate_status }}
+      coverage: ${{ steps.sonar.outputs.coverage }}
+    steps:
+      - name: Clean workspace
+        uses: ./.github/actions/workspace-cleanup
+        with:
+          cleanup_docker: 'false'
+          cleanup_temp: 'true'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Maven build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.maven-build.outputs.jar_artifact }}
+          path: ${{ inputs.build_context }}/target/
+
+      - name: SonarQube Scan
+        id: sonar
+        uses: ./.github/actions/sonar-scan
+        with:
+          application_name: ${{ inputs.application_name }}
+          application_type: java-springboot
+          build_context: ${{ inputs.build_context }}
+          sonar_enabled: ${{ vars.SONAR_ENABLED || 'true' }}
+          sonar_host_url: ${{ secrets.SONAR_HOST_URL || vars.SONAR_HOST_URL }}
+          sonar_token: ${{ secrets.SONAR_TOKEN }}
+          sonar_project_key: ${{ vars.SONAR_PROJECT_KEY || inputs.application_name }}
+
+  checkmarx-scan:
+    runs-on: ubuntu-latest
+    needs: [validate-environment, setup, maven-build]
+    if: needs.validate-environment.outputs.should_deploy == 'true' && needs.setup.outputs.should_deploy == 'true' && !failure() && !cancelled()
+    outputs:
+      scan_status: ${{ steps.checkmarx.outputs.scan_status }}
+      scan_id: ${{ steps.checkmarx.outputs.scan_id }}
+    steps:
+      - name: Clean workspace
+        uses: ./.github/actions/workspace-cleanup
+        with:
+          cleanup_docker: 'false'
+          cleanup_temp: 'true'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Checkmarx Scan
+        id: checkmarx
+        uses: ./.github/actions/checkmarx-scan
+        with:
+          application_name: ${{ inputs.application_name }}
+          application_type: java-springboot
+          build_context: ${{ inputs.build_context }}
+          checkmarx_enabled: ${{ vars.CHECKMARX_ENABLED || 'true' }}
+          checkmarx_url: ${{ secrets.CHECKMARX_URL || vars.CHECKMARX_URL }}
+          checkmarx_username: ${{ secrets.CHECKMARX_USERNAME }}
+          checkmarx_password: ${{ secrets.CHECKMARX_PASSWORD }}
+          checkmarx_project_name: ${{ vars.CHECKMARX_PROJECT_NAME || inputs.application_name }}
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [validate-environment, setup, maven-build, sonar-scan, checkmarx-scan]
+    if: needs.validate-environment.outputs.should_deploy == 'true' && needs.setup.outputs.should_deploy == 'true' && needs.sonar-scan.outputs.scan_status == 'PASSED' && needs.checkmarx-scan.outputs.scan_status == 'PASSED'
+    outputs:
+      image_digest: ${{ steps.build.outputs.digest }}
+    environment: ${{ needs.validate-environment.outputs.target_environment }}
+    steps:
+      - name: Clean workspace
+        uses: ./.github/actions/workspace-cleanup
+        with:
+          cleanup_docker: 'true'
+          cleanup_temp: 'true'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Maven build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.maven-build.outputs.jar_artifact }}
+          path: ${{ inputs.build_context }}/target/
+
+      - name: Build and push Docker image
+        id: build
+        uses: ./.github/actions/docker-build
+        with:
+          application_name: ${{ inputs.application_name }}
+          dockerfile_path: ${{ inputs.dockerfile_path }}
+          build_context: ${{ inputs.build_context }}
+          image_tag: ${{ needs.setup.outputs.image_tag }}
+          registry: ${{ env.REGISTRY }}
+          azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [validate-environment, setup, sonar-scan, checkmarx-scan, build]
+    if: needs.validate-environment.outputs.should_deploy == 'true' && needs.setup.outputs.should_deploy == 'true' && needs.sonar-scan.outputs.scan_status == 'PASSED' && needs.checkmarx-scan.outputs.scan_status == 'PASSED'
+    environment: ${{ needs.validate-environment.outputs.target_environment }}
+    steps:
+      - name: Deploy to AKS
+        uses: ./.github/actions/helm-deploy
+        with:
+          environment: ${{ needs.validate-environment.outputs.target_environment }}
+          application_name: ${{ inputs.application_name }}
+          application_type: java-springboot
+          helm_chart_path: ${{ inputs.helm_chart_path }}
+          image_tag: ${{ needs.setup.outputs.image_tag }}
+          helm_version: ${{ needs.setup.outputs.helm_version }}
+          registry: ${{ env.REGISTRY }}
+          aks_cluster_name: ${{ needs.validate-environment.outputs.aks_cluster_name_1 }}
+          aks_resource_group: ${{ needs.validate-environment.outputs.aks_resource_group_1 }}
+          azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          keyvault_name: ${{ secrets.KEYVAULT_NAME }}
+
+  create_release:
+    runs-on: ubuntu-latest
+    needs: [validate-environment, setup, deploy]
+    if: |
+      needs.validate-environment.outputs.should_deploy == 'true' && 
+      needs.setup.outputs.should_deploy == 'true' && 
+      needs.validate-environment.outputs.target_environment == 'production' &&
+      (startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/tags/')) &&
+      !failure() && !cancelled()
+    steps:
+      - name: Create GitHub Release
+        uses: ./.github/actions/github-release
+        with:
+          application_name: ${{ inputs.application_name }}
+          version: ${{ needs.setup.outputs.image_tag }}
+          environment: ${{ needs.validate-environment.outputs.target_environment }}
+
+  health-check:
+    runs-on: ubuntu-latest
+    needs: [validate-environment, setup, deploy]
+    if: needs.validate-environment.outputs.should_deploy == 'true' && needs.setup.outputs.should_deploy == 'true'
+    environment: ${{ needs.validate-environment.outputs.target_environment }}
+    steps:
+      - name: Health Check
+        uses: ./.github/actions/health-check
+        with:
+          application_name: ${{ inputs.application_name }}
+          environment: ${{ needs.validate-environment.outputs.target_environment }}
+          aks_cluster_name: ${{ needs.validate-environment.outputs.target_environment == 'dev' && inputs.aks_cluster_name_dev || needs.validate-environment.outputs.target_environment == 'sqe' && inputs.aks_cluster_name_sqe || inputs.aks_cluster_name_prod }}
+          aks_resource_group: ${{ needs.validate-environment.outputs.target_environment == 'dev' && inputs.aks_resource_group_dev || needs.validate-environment.outputs.target_environment == 'sqe' && inputs.aks_resource_group_sqe || inputs.aks_resource_group_prod }}
+          azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}

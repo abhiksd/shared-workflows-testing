@@ -42,11 +42,10 @@ on:
 jobs:
   # Deploy Java Backend 2 - Product Catalog Service
   deploy:
-    uses: ./.github/workflows/shared-deploy.yml
+    uses: ./.github/workflows/shared-deploy-java.yml
     with:
       environment: ${{ github.event.inputs.environment || 'auto' }}
       application_name: java-backend2
-      application_type: java-springboot
       build_context: apps/java-backend2
       dockerfile_path: apps/java-backend2/Dockerfile
       helm_chart_path: helm

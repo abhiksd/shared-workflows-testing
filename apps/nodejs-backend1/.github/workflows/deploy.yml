@@ -42,11 +42,10 @@ on:
 jobs:
   # Deploy Node.js Backend 1 - Notification Service
   deploy:
-    uses: ./.github/workflows/shared-deploy.yml
+    uses: ./.github/workflows/shared-deploy-nodejs.yml
     with:
       environment: ${{ github.event.inputs.environment || 'auto' }}
       application_name: nodejs-backend1
-      application_type: nodejs
       build_context: apps/nodejs-backend1
       dockerfile_path: apps/nodejs-backend1/Dockerfile
       helm_chart_path: helm
