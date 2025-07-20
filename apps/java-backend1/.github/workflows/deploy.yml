@@ -42,10 +42,11 @@ on:
 jobs:
   # Deploy Java Backend 1 - User Management Service
   deploy:
-    uses: ./.github/workflows/shared-deploy-java.yml
+    uses: ./.github/workflows/shared-deploy.yml
     with:
       environment: ${{ github.event.inputs.environment || 'auto' }}
       application_name: java-backend1
+      application_type: java-springboot
       build_context: apps/java-backend1
       dockerfile_path: apps/java-backend1/Dockerfile
       helm_chart_path: helm

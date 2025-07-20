@@ -42,10 +42,11 @@ on:
 jobs:
   # Deploy Node.js Backend 2 - Analytics Service
   deploy:
-    uses: ./.github/workflows/shared-deploy-nodejs.yml
+    uses: ./.github/workflows/shared-deploy.yml
     with:
       environment: ${{ github.event.inputs.environment || 'auto' }}
       application_name: nodejs-backend2
+      application_type: nodejs
       build_context: apps/nodejs-backend2
       dockerfile_path: apps/nodejs-backend2/Dockerfile
       helm_chart_path: helm
