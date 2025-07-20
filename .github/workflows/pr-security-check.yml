@@ -182,14 +182,14 @@ jobs:
           cd apps/nodejs-app
           npm run build || true  # Don't fail if no build script
 
-      - name: SonarQube Scan
+      - name: SonarQube Scan (Maven-based)
         id: sonar
         uses: ./.github/actions/sonar-scan
         with:
           application_name: nodejs-app
           application_type: nodejs
           build_context: apps/nodejs-app
-          sonar_enabled: ${{ vars.SONAR_ENABLED || 'true' }}
+          sonar_enabled: 'false'  # Disabled for Node.js - Maven-based scan only
           sonar_host_url: ${{ vars.SONAR_HOST_URL }}
           sonar_token: ${{ secrets.SONAR_TOKEN }}
           sonar_project_key: ${{ vars.SONAR_PROJECT_KEY || 'nodejs-app' }}
