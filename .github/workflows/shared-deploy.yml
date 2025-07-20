@@ -471,23 +471,9 @@ jobs:
           version: ${{ needs.setup.outputs.version }}
           application_name: ${{ inputs.application_name }}
 
-  deploy-monitoring:
-    needs: [validate-environment, setup, deploy]
-    if: |
-      needs.validate-environment.outputs.should_deploy == 'true' && 
-      needs.setup.outputs.should_deploy == 'true' && 
-      !failure() && !cancelled()
-    uses: ./.github/workflows/deploy-monitoring.yml
-    with:
-      environment: ${{ needs.validate-environment.outputs.target_environment }}
-      aks_cluster_name: ${{ needs.validate-environment.outputs.target_environment == 'dev' && inputs.aks_cluster_name_dev || needs.validate-environment.outputs.target_environment == 'sqe' && inputs.aks_cluster_name_sqe || inputs.aks_cluster_name_prod }}
-      aks_resource_group: ${{ needs.validate-environment.outputs.target_environment == 'dev' && inputs.aks_resource_group_dev || needs.validate-environment.outputs.target_environment == 'sqe' && inputs.aks_resource_group_sqe || inputs.aks_resource_group_prod }}
-      azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      force_deploy: false
-    secrets:
-      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  # deploy-monitoring: REMOVED - Should be separate workflow triggered only by monitoring changes
+  # Monitoring deployments should be independent of application deployments
+  # Use manual dispatch or separate monitoring-specific workflow instead
 
   # cleanup:
   #   runs-on: ubuntu-latest

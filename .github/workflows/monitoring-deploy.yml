@@ -1,0 +1,73 @@
+name: Deploy Monitoring Stack
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'helm/monitoring/**'
+      - '.github/workflows/deploy-monitoring.yml'
+      - '.github/workflows/monitoring-deploy.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - production
+      force_deploy:
+        description: 'Force deployment even if no changes'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy-monitoring-to-dev:
+    if: github.ref == 'refs/heads/develop' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev')
+    uses: ./.github/workflows/deploy-monitoring.yml
+    with:
+      environment: dev
+      aks_cluster_name: ${{ vars.AKS_CLUSTER_NAME_DEV }}
+      aks_resource_group: ${{ vars.AKS_RESOURCE_GROUP_DEV }}
+      azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      force_deploy: ${{ github.event.inputs.force_deploy == 'true' }}
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+  deploy-monitoring-to-staging:
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+    uses: ./.github/workflows/deploy-monitoring.yml
+    with:
+      environment: staging
+      aks_cluster_name: ${{ vars.AKS_CLUSTER_NAME_SQE }}
+      aks_resource_group: ${{ vars.AKS_RESOURCE_GROUP_SQE }}
+      azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      force_deploy: ${{ github.event.inputs.force_deploy == 'true' }}
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+  deploy-monitoring-to-production:
+    if: startsWith(github.ref, 'refs/heads/release/') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production')
+    uses: ./.github/workflows/deploy-monitoring.yml
+    with:
+      environment: production
+      aks_cluster_name: ${{ vars.AKS_CLUSTER_NAME_PROD }}
+      aks_resource_group: ${{ vars.AKS_RESOURCE_GROUP_PROD }}
+      azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      force_deploy: ${{ github.event.inputs.force_deploy == 'true' }}
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
