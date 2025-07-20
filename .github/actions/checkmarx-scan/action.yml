@@ -63,166 +63,116 @@ inputs:
 outputs:
   scan_id:
     description: 'Checkmarx scan ID'
-    value: ${{ steps.setup.outputs.scan_id }}
+    value: ${{ steps.scan.outputs.scan_id }}
   sast_results:
     description: 'SAST scan results summary'
-    value: ${{ steps.sast-scan.outputs.results }}
+    value: ${{ steps.results.outputs.sast_results }}
   sca_results:
     description: 'SCA scan results summary'
-    value: ${{ steps.sca-scan.outputs.results }}
+    value: ${{ steps.results.outputs.sca_results }}
   kics_results:
     description: 'KICS scan results summary'
-    value: ${{ steps.kics-scan.outputs.results }}
+    value: ${{ steps.results.outputs.kics_results }}
   overall_results:
     description: 'Combined scan results summary'
-    value: ${{ steps.evaluate-results.outputs.overall_results }}
+    value: ${{ steps.results.outputs.overall_results }}
   scan_status:
     description: 'Overall Checkmarx scan status'
-    value: ${{ steps.evaluate-results.outputs.scan_status }}
+    value: ${{ steps.results.outputs.scan_status }}
 
 runs:
   using: 'composite'
   steps:
-    - name: Validate Configuration and Setup
-      id: setup
+    - name: Setup SCA Resolver
+      if: inputs.checkmarx_enabled == 'true' && contains(inputs.checkmarx_scan_types, 'sca')
       shell: bash
       run: |
-        # Load Checkmarx utilities
-        source ${{ github.workspace }}/scripts/checkmarx-utils.sh
-        
-        # Validate configuration
-        if ! cx_validate_config "${{ inputs.checkmarx_enabled }}" "${{ inputs.checkmarx_url }}" "${{ inputs.cx_tenant }}" "${{ inputs.checkmarx_client_id }}" "${{ inputs.checkmarx_client_secret }}"; then
-          echo "scan_id=disabled" >> $GITHUB_OUTPUT
-          exit 0
+        if [[ "${{ inputs.application_type }}" == "java-springboot" && (-f "pom.xml" || -f "build.gradle") ]]; then
+          echo "📦 Setup SCA for Java..."
+          wget -q https://sca-downloads.s3.amazonaws.com/cli/2.7.2/ScaResolver-linux64.tar.gz
+          tar -xzf ScaResolver-linux64.tar.gz && rm ScaResolver-linux64.tar.gz
+          ./ScaResolver offline -r ".cxsca-results.json" -s ${{ inputs.build_context }} -n "${{ inputs.application_name }}"
         fi
-        
-        # Generate scan ID
+
+    - name: Run Checkmarx AST
+      id: scan
+      if: inputs.checkmarx_enabled == 'true'
+      uses: checkmarx/ast-github-action@86e9ae570a811f9a1fb85903647a307aa3bf6253
+      with:
+        project_name: ${{ inputs.application_name }}
+        cx_server: ${{ inputs.checkmarx_url }}
+        cx_user: ${{ inputs.checkmarx_client_id }}
+        cx_password: ${{ inputs.checkmarx_client_secret }}
+        cx_tenant: ${{ inputs.cx_tenant }}
+        cx_client_secret: ${{ inputs.checkmarx_client_secret }}
+        additional_params: --scan-types ${{ inputs.checkmarx_scan_types }} --report-format sarif --output-path . --sast-preset-name "${{ inputs.checkmarx_sast_preset }}"
+
+    - name: Parse Results
+      id: results
+      if: inputs.checkmarx_enabled == 'true'
+      shell: bash
+      run: |
         SCAN_ID="CX-$(date +%Y%m%d%H%M%S)-${{ inputs.application_name }}"
-        echo "scan_id=$SCAN_ID" >> $GITHUB_OUTPUT
-        log_info "Generated Scan ID: $SCAN_ID"
+        CRITICAL=0
+        HIGH=0
+        MEDIUM=0
+        LOW=0
         
-        # Setup tools
-        cx_setup_tools "${{ inputs.checkmarx_scan_types }}"
-
-    - name: SAST Scan
-      id: sast-scan
-      if: steps.setup.outputs.scan_id != 'disabled' && contains(inputs.checkmarx_scan_types, 'sast')
-      shell: bash
-      run: |
-        source ${{ github.workspace }}/scripts/checkmarx-utils.sh
+        # Parse SARIF results
+        for file in $(find . -name "*.sarif" 2>/dev/null | head -5); do
+          if [[ -f "$file" ]] && command -v jq >/dev/null 2>&1; then
+            CRITICAL=$((CRITICAL + $(jq -r '[.runs[]?.results[]? | select(.level=="error")] | length' "$file" 2>/dev/null || echo "0")))
+            HIGH=$((HIGH + $(jq -r '[.runs[]?.results[]? | select(.level=="warning")] | length' "$file" 2>/dev/null || echo "0")))
+            MEDIUM=$((MEDIUM + $(jq -r '[.runs[]?.results[]? | select(.level=="note")] | length' "$file" 2>/dev/null || echo "0")))
+            LOW=$((LOW + $(jq -r '[.runs[]?.results[]? | select(.level=="info")] | length' "$file" 2>/dev/null || echo "0")))
+          fi
+        done
         
-        # Authenticate and run SAST scan
-        ACCESS_TOKEN=$(cx_authenticate "${{ inputs.checkmarx_url }}" "${{ inputs.checkmarx_client_id }}" "${{ inputs.checkmarx_client_secret }}")
-        cx_run_sast "${{ inputs.checkmarx_url }}" "$ACCESS_TOKEN" "${{ inputs.application_name }}-SAST-${{ steps.setup.outputs.scan_id }}" "${{ inputs.checkmarx_sast_preset }}" "${{ inputs.build_context }}"
+        # Check thresholds
+        STATUS="PASSED"
+        [[ "$HIGH" -gt "${{ inputs.checkmarx_high_threshold }}" ]] && STATUS="FAILED"
+        [[ "$MEDIUM" -gt "${{ inputs.checkmarx_medium_threshold }}" ]] && STATUS="FAILED"
+        [[ "$LOW" -gt "${{ inputs.checkmarx_low_threshold }}" ]] && STATUS="FAILED"
         
-        # Parse results
-        SAST_COUNTS=$(cx_parse_results "sast" "sast-results.xml")
-        read -r HIGH_SAST MEDIUM_SAST LOW_SAST <<< "$SAST_COUNTS"
-        
-        SAST_SUMMARY="H${HIGH_SAST}/M${MEDIUM_SAST}/L${LOW_SAST}"
-        [[ ! -f "sast-results.xml" ]] && SAST_SUMMARY="N/A"
-        
-        # Store results
-        echo "HIGH_SAST=$HIGH_SAST" >> $GITHUB_ENV
-        echo "MEDIUM_SAST=$MEDIUM_SAST" >> $GITHUB_ENV
-        echo "LOW_SAST=$LOW_SAST" >> $GITHUB_ENV
-        echo "results=$SAST_SUMMARY" >> $GITHUB_OUTPUT
-
-    - name: SCA Scan
-      id: sca-scan
-      if: steps.setup.outputs.scan_id != 'disabled' && contains(inputs.checkmarx_scan_types, 'sca')
-      shell: bash
-      run: |
-        source ${{ github.workspace }}/scripts/checkmarx-utils.sh
-        
-        # Run SCA scan
-        cx_run_sca "${{ inputs.application_name }}-SCA-${{ steps.setup.outputs.scan_id }}" "${{ inputs.build_context }}" "${{ inputs.checkmarx_sca_resolver }}"
-        
-        # Parse results
-        SCA_COUNTS=$(cx_parse_results "sca" "sca-results.json")
-        read -r HIGH_SCA MEDIUM_SCA LOW_SCA <<< "$SCA_COUNTS"
-        
-        SCA_SUMMARY="H${HIGH_SCA}/M${MEDIUM_SCA}/L${LOW_SCA}"
-        [[ ! -f "sca-results.json" ]] && SCA_SUMMARY="N/A"
-        
-        # Store results
-        echo "HIGH_SCA=$HIGH_SCA" >> $GITHUB_ENV
-        echo "MEDIUM_SCA=$MEDIUM_SCA" >> $GITHUB_ENV
-        echo "LOW_SCA=$LOW_SCA" >> $GITHUB_ENV
-        echo "results=$SCA_SUMMARY" >> $GITHUB_OUTPUT
-
-    - name: KICS Scan
-      id: kics-scan
-      if: steps.setup.outputs.scan_id != 'disabled' && contains(inputs.checkmarx_scan_types, 'kics')
-      shell: bash
-      run: |
-        source ${{ github.workspace }}/scripts/checkmarx-utils.sh
-        
-        # Run KICS scan
-        cx_run_kics "${{ inputs.build_context }}" "${{ inputs.checkmarx_kics_platforms }}"
-        
-        # Parse results
-        KICS_COUNTS=$(cx_parse_results "kics" "kics-results/results.json")
-        read -r HIGH_KICS MEDIUM_KICS LOW_KICS <<< "$KICS_COUNTS"
-        
-        KICS_SUMMARY="H${HIGH_KICS}/M${MEDIUM_KICS}/L${LOW_KICS}"
-        [[ ! -f "kics-results/results.json" ]] && KICS_SUMMARY="N/A"
-        
-        # Store results
-        echo "HIGH_KICS=$HIGH_KICS" >> $GITHUB_ENV
-        echo "MEDIUM_KICS=$MEDIUM_KICS" >> $GITHUB_ENV
-        echo "LOW_KICS=$LOW_KICS" >> $GITHUB_ENV
-        echo "results=$KICS_SUMMARY" >> $GITHUB_OUTPUT
-
-    - name: Evaluate Results and Generate Report
-      id: evaluate-results
-      if: steps.setup.outputs.scan_id != 'disabled'
-      shell: bash
-      run: |
-        source ${{ github.workspace }}/scripts/checkmarx-utils.sh
-        
-        # Combine results
-        COMBINED_RESULTS=""
-        [[ "${{ steps.sast-scan.outputs.results }}" != "" && "${{ steps.sast-scan.outputs.results }}" != "N/A" ]] && COMBINED_RESULTS="${COMBINED_RESULTS}SAST:${{ steps.sast-scan.outputs.results }} "
-        [[ "${{ steps.sca-scan.outputs.results }}" != "" && "${{ steps.sca-scan.outputs.results }}" != "N/A" ]] && COMBINED_RESULTS="${COMBINED_RESULTS}SCA:${{ steps.sca-scan.outputs.results }} "
-        [[ "${{ steps.kics-scan.outputs.results }}" != "" && "${{ steps.kics-scan.outputs.results }}" != "N/A" ]] && COMBINED_RESULTS="${COMBINED_RESULTS}KICS:${{ steps.kics-scan.outputs.results }} "
-        COMBINED_RESULTS=$(echo "$COMBINED_RESULTS" | xargs)
-        [[ -z "$COMBINED_RESULTS" ]] && COMBINED_RESULTS="No scans completed"
-        
-        # Calculate totals and evaluate thresholds
-        TOTAL_HIGH=$((${HIGH_SAST:-0} + ${HIGH_SCA:-0} + ${HIGH_KICS:-0}))
-        TOTAL_MEDIUM=$((${MEDIUM_SAST:-0} + ${MEDIUM_SCA:-0} + ${MEDIUM_KICS:-0}))
-        TOTAL_LOW=$((${LOW_SAST:-0} + ${LOW_SCA:-0} + ${LOW_KICS:-0}))
-        
-        OVERALL_STATUS=$(cx_evaluate_thresholds "$TOTAL_HIGH" "$TOTAL_MEDIUM" "$TOTAL_LOW" "${{ inputs.checkmarx_high_threshold }}" "${{ inputs.checkmarx_medium_threshold }}" "${{ inputs.checkmarx_low_threshold }}" "${{ inputs.checkmarx_fail_build }}")
-        
-        # Generate report
-        cx_generate_report "${{ inputs.application_name }}" "${{ steps.setup.outputs.scan_id }}" "${{ inputs.checkmarx_scan_types }}" "${{ inputs.checkmarx_sast_preset }}" "${{ inputs.checkmarx_sca_resolver }}" "${{ inputs.checkmarx_kics_platforms }}" "${{ steps.sast-scan.outputs.results }}" "${{ steps.sca-scan.outputs.results }}" "${{ steps.kics-scan.outputs.results }}" "${{ inputs.checkmarx_high_threshold }}" "${{ inputs.checkmarx_medium_threshold }}" "${{ inputs.checkmarx_low_threshold }}" "$OVERALL_STATUS"
+        # Generate results summary
+        SAST_RESULTS="H${HIGH}/M${MEDIUM}/L${LOW}"
+        SCA_RESULTS="H${HIGH}/M${MEDIUM}/L${LOW}"
+        KICS_RESULTS="H${HIGH}/M${MEDIUM}/L${LOW}"
+        OVERALL_RESULTS="Total: H${HIGH}/M${MEDIUM}/L${LOW}"
         
         # Set outputs
-        cx_set_outputs "${{ steps.setup.outputs.scan_id }}" "${{ steps.sast-scan.outputs.results }}" "${{ steps.sca-scan.outputs.results }}" "${{ steps.kics-scan.outputs.results }}" "$COMBINED_RESULTS" "$OVERALL_STATUS"
+        echo "scan_id=$SCAN_ID" >> $GITHUB_OUTPUT
+        echo "sast_results=$SAST_RESULTS" >> $GITHUB_OUTPUT
+        echo "sca_results=$SCA_RESULTS" >> $GITHUB_OUTPUT
+        echo "kics_results=$KICS_RESULTS" >> $GITHUB_OUTPUT
+        echo "overall_results=$OVERALL_RESULTS" >> $GITHUB_OUTPUT
+        echo "scan_status=$STATUS" >> $GITHUB_OUTPUT
+        
+        echo "🔒 Checkmarx: $STATUS | Vulnerabilities: $CRITICAL critical, $HIGH high, $MEDIUM medium, $LOW low"
 
-    - name: Upload Artifacts and Final Check
-      if: always() && steps.setup.outputs.scan_id != 'disabled'
+    - name: Upload Results
+      if: always() && inputs.checkmarx_enabled == 'true'
       uses: actions/upload-artifact@v4
       with:
         name: checkmarx-scan-results-${{ inputs.application_name }}
         path: |
-          checkmarx-scan-report.md
-          sast-results.*
-          sca-results.*
-          kics-results/
+          *.sarif
+          .cxsca-results.json
         retention-days: 30
 
-    - name: Final Status Check
-      if: steps.setup.outputs.scan_id != 'disabled'
+    - name: Check Build Status
+      if: inputs.checkmarx_enabled == 'true' && inputs.checkmarx_fail_build == 'true'
       shell: bash
       run: |
-        source ${{ github.workspace }}/scripts/checkmarx-utils.sh
-        STATUS="${{ steps.evaluate-results.outputs.scan_status }}"
+        STATUS="${{ steps.results.outputs.scan_status }}"
         if [[ "$STATUS" == "FAILED" ]]; then
-          log_error "Checkmarx scan failed - check the report for details"
+          echo "❌ Checkmarx scan failed - vulnerabilities exceed thresholds"
           exit 1
         else
-          log_success "Checkmarx scan completed successfully"
+          echo "✅ Checkmarx scan passed"
         fi
+
+    - name: Skip (Disabled)
+      if: inputs.checkmarx_enabled != 'true'
+      shell: bash
+      run: echo "⏭️ Checkmarx scan disabled"
