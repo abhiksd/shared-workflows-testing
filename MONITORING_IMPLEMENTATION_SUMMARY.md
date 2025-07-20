@@ -120,6 +120,23 @@ helm/nodejs-app/
 └── values.yaml                           # Modified: Added monitoring configuration
 ```
 
+### Application Configuration Profiles
+```
+apps/java-app/src/main/resources/
+├── application.yml                        # New: Base Spring Boot configuration
+├── application-local.yml                  # New: Local development profile (H2)
+├── application-dev.yml                    # New: Development profile (PostgreSQL)
+├── application-staging.yml                # New: Staging profile (production-like)
+└── application-production.yml             # New: Production profile (enterprise-grade)
+
+apps/nodejs-app/config/
+├── default.js                            # New: Base Node.js configuration
+├── local.js                              # New: Local development configuration
+├── development.js                        # New: Development environment config
+├── staging.js                            # New: Staging environment config
+└── production.js                         # New: Production environment config
+```
+
 ## 🔧 Environment-Specific Configurations
 
 ### Development Environment
@@ -300,6 +317,11 @@ inputs:
 - ✅ **Comprehensive documentation**: Setup, usage, and maintenance guides
 - ✅ **Security implementation**: Network policies, RBAC, and data protection
 - ✅ **Performance optimization**: Resource tuning and query optimization
+- ✅ **Production-grade application profiles**: Spring Boot and Node.js configurations
+- ✅ **Database configurations**: Environment-specific database settings (H2, PostgreSQL)
+- ✅ **Caching strategies**: Redis configurations with environment-specific optimizations
+- ✅ **Security configurations**: JWT, OAuth2, CORS, and security headers per environment
+- ✅ **Azure Key Vault integration**: Secure secrets management across environments
 
 ## 🎯 Next Steps
 
