@@ -11,7 +11,7 @@ on:
       - main
       - develop
       - 'release/**'
-      - 'feature/**'
+      # feature/** removed - no deployment logic for feature branches
     paths:
       - 'apps/nodejs-backend2/**'
       - 'helm/**'
