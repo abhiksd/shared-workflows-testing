@@ -73,74 +73,35 @@ jobs:
       - name: Validate rollback request
         id: validation
         run: |
+          # Load deployment utilities
+          source scripts/deployment-utils.sh
+          
           ENVIRONMENT="${{ github.event.inputs.environment }}"
           APPLICATION="${{ github.event.inputs.application_name }}"
           STRATEGY="${{ github.event.inputs.rollback_strategy }}"
           
-          echo "🔍 Validating rollback request for $APPLICATION in $ENVIRONMENT"
+          log_info "Validating rollback request for $APPLICATION in $ENVIRONMENT"
           
-          # Set cluster details based on environment
-          # NOTE: Update these values to match your actual AKS cluster names
-          case "$ENVIRONMENT" in
-            "dev")
-              AKS_CLUSTER="${AKS_CLUSTER_NAME_DEV:-aks-platform-dev}"
-              AKS_RG="${AKS_RESOURCE_GROUP_DEV:-rg-platform-dev}"
-              NAMESPACE="default"
-              ;;
-            "staging")
-              AKS_CLUSTER="${AKS_CLUSTER_NAME_STAGING:-aks-platform-staging}"
-              AKS_RG="${AKS_RESOURCE_GROUP_STAGING:-rg-platform-staging}"
-              NAMESPACE="default"
-              ;;
-            "production")
-              AKS_CLUSTER="${AKS_CLUSTER_NAME_PROD:-aks-platform-prod}"
-              AKS_RG="${AKS_RESOURCE_GROUP_PROD:-rg-platform-prod}"
-              NAMESPACE="default"
-              ;;
-            *)
-              echo "❌ Invalid environment: $ENVIRONMENT"
-              exit 1
-              ;;
-          esac
+          # Validate rollback target
+          if TARGET=$(validate_rollback_request "$ENVIRONMENT" "$STRATEGY" "${{ github.event.inputs.target_version }}" "${{ github.event.inputs.target_revision }}"); then
+            log_success "Rollback validation completed"
+          else
+            exit 1
+          fi
           
-          # Validate rollback strategy
-          TARGET=""
-          case "$STRATEGY" in
-            "previous-version")
-              TARGET="previous"
-              echo "📋 Rollback strategy: Previous version"
-              ;;
-            "specific-version")
-              if [[ -z "${{ github.event.inputs.target_version }}" ]]; then
-                echo "❌ Target version required for specific-version strategy"
-                exit 1
-              fi
-              TARGET="${{ github.event.inputs.target_version }}"
-              echo "📋 Rollback strategy: Specific version ($TARGET)"
-              ;;
-            "specific-revision")
-              if [[ -z "${{ github.event.inputs.target_revision }}" ]]; then
-                echo "❌ Target revision required for specific-revision strategy"
-                exit 1
-              fi
-              TARGET="${{ github.event.inputs.target_revision }}"
-              echo "📋 Rollback strategy: Specific revision ($TARGET)"
-              ;;
-            *)
-              echo "❌ Invalid rollback strategy: $STRATEGY"
-              exit 1
-              ;;
-          esac
+          # Get cluster information
+          CLUSTER_INFO=$(get_cluster_info "$ENVIRONMENT")
+          read -r AKS_CLUSTER AKS_RG <<< "$CLUSTER_INFO"
           
           # Set outputs
-          echo "should_rollback=true" >> $GITHUB_OUTPUT
-          echo "target_environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
-          echo "aks_cluster_name=$AKS_CLUSTER" >> $GITHUB_OUTPUT
-          echo "aks_resource_group=$AKS_RG" >> $GITHUB_OUTPUT
-          echo "rollback_target=$TARGET" >> $GITHUB_OUTPUT
-          echo "namespace=$NAMESPACE" >> $GITHUB_OUTPUT
-          
-          echo "✅ Rollback validation completed"
+          {
+            echo "should_rollback=true"
+            echo "target_environment=$ENVIRONMENT"
+            echo "aks_cluster_name=$AKS_CLUSTER"
+            echo "aks_resource_group=$AKS_RG"
+            echo "rollback_target=$TARGET"
+            echo "namespace=default"
+          } >> $GITHUB_OUTPUT
 
   pre-rollback-checks:
     runs-on: ubuntu-latest

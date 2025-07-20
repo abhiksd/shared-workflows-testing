@@ -6,47 +6,14 @@
 
 set -euo pipefail
 
-# Color codes for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+# Load common utilities
+source "$(dirname "${BASH_SOURCE[0]}")/common-utils.sh"
 
 # Default values
-VERBOSE=false
 CHECK_PERMISSIONS=false
 RESOURCE_GROUP=""
 KEYVAULT_NAME=""
 SUBSCRIPTION_ID=""
-
-# Function to print colored output
-print_info() {
-    echo -e "${BLUE}ℹ️  $1${NC}"
-}
-
-print_success() {
-    echo -e "${GREEN}✅ $1${NC}"
-}
-
-print_warning() {
-    echo -e "${YELLOW}⚠️  $1${NC}"
-}
-
-print_error() {
-    echo -e "${RED}❌ $1${NC}"
-}
-
-print_header() {
-    echo -e "${CYAN}🔍 $1${NC}"
-}
-
-print_verbose() {
-    if [[ "$VERBOSE" == true ]]; then
-        echo -e "${BLUE}   📝 $1${NC}"
-    fi
-}
 
 # Function to display usage
 usage() {
@@ -77,67 +44,46 @@ Examples:
 EOF
 }
 
-# Function to check if command exists
-command_exists() {
-    command -v "$1" >/dev/null 2>&1
-}
-
 # Function to check Azure CLI installation
 check_azure_cli_installation() {
-    print_header "Azure CLI Installation Check"
+    log_header "Azure CLI Installation Check"
     
     if command_exists az; then
         local az_version=$(az version --query '"azure-cli"' -o tsv 2>/dev/null || echo "unknown")
-        print_success "Azure CLI is installed"
-        print_verbose "Version: $az_version"
+        log_success "Azure CLI is installed"
+        log_verbose "Version: $az_version"
         
         # Check for extensions
-        print_verbose "Checking installed extensions..."
+        log_verbose "Checking installed extensions..."
         local extensions=$(az extension list --query "[].name" -o tsv 2>/dev/null || echo "")
         if [[ -n "$extensions" ]]; then
-            print_verbose "Extensions: $(echo $extensions | tr '\n' ', ' | sed 's/,$//')"
+            log_verbose "Extensions: $(echo $extensions | tr '\n' ', ' | sed 's/,$//')"
         else
-            print_verbose "No extensions installed"
+            log_verbose "No extensions installed"
         fi
     else
-        print_error "Azure CLI is not installed"
-        print_info "Install from: https://docs.microsoft.com/en-us/cli/azure/install-azure-cli"
+        log_error "Azure CLI is not installed"
+        log_info "Install from: https://docs.microsoft.com/en-us/cli/azure/install-azure-cli"
         exit 1
     fi
 }
 
 # Function to check login status
 check_login_status() {
-    print_header "Azure Login Status"
+    log_header "Azure Login Status"
     
-    if az account show &> /dev/null; then
-        print_success "Logged in to Azure CLI"
+    if az_check_login; then
+        log_success "Logged in to Azure CLI"
+        az_get_account_info
         
-        # Get basic account info
-        local user_name=$(az account show --query user.name -o tsv 2>/dev/null || echo "Unknown")
+        # Check identity type
         local user_type=$(az account show --query user.type -o tsv 2>/dev/null || echo "Unknown")
-        local tenant_id=$(az account show --query tenantId -o tsv 2>/dev/null || echo "Unknown")
-        local subscription_name=$(az account show --query name -o tsv 2>/dev/null || echo "Unknown")
-        local subscription_id=$(az account show --query id -o tsv 2>/dev/null || echo "Unknown")
-        
-        echo "User: $user_name"
-        echo "Type: $user_type"
-        echo "Tenant: $tenant_id"
-        echo "Subscription: $subscription_name"
-        echo "Subscription ID: $subscription_id"
-        
-        # Check if managed identity
-        if [[ "$user_type" == "servicePrincipal" ]]; then
-            print_info "Logged in as Service Principal"
-        elif [[ "$user_type" == "managedIdentity" ]]; then
-            print_info "Using Managed Identity"
-        else
-            print_info "Logged in as User Account"
-        fi
-        
+        case "$user_type" in
+            servicePrincipal) log_info "Logged in as Service Principal" ;;
+            managedIdentity) log_info "Using Managed Identity" ;;
+            *) log_info "Logged in as User Account" ;;
+        esac
     else
-        print_error "Not logged in to Azure CLI"
-        print_info "Run: az login"
         exit 1
     fi
 }

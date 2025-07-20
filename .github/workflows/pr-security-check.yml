@@ -57,12 +57,15 @@ jobs:
       - name: Determine Security Scan Requirement
         id: should-run
         run: |
+          # Load common utilities
+          source scripts/common-utils.sh
+          
           if [[ "${{ steps.changes.outputs.java-app }}" == "true" || "${{ steps.changes.outputs.nodejs-app }}" == "true" ]]; then
             echo "should-run=true" >> $GITHUB_OUTPUT
-            echo "🔍 Application changes detected - security scans required"
+            log_info "Application changes detected - security scans required"
           else
             echo "should-run=false" >> $GITHUB_OUTPUT
-            echo "ℹ️ No application changes detected - skipping security scans"
+            log_info "No application changes detected - skipping security scans"
           fi
 
   # Security scan for Java application

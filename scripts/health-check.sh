@@ -5,12 +5,8 @@
 
 set -e
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Load common utilities
+source "$(dirname "${BASH_SOURCE[0]}")/common-utils.sh"
 
 # Configuration
 ENVIRONMENT=${1:-dev}
@@ -37,48 +33,16 @@ print_section() {
     echo "$(printf '=%.0s' {1..50})"
 }
 
-log_verbose() {
-    if [[ "$VERBOSE" == "true" ]]; then
-        echo -e "${YELLOW}[VERBOSE] $1${NC}"
-    fi
-}
-
 # Function to check URL and report status
 check_url() {
-    local url=$1
-    local description=$2
-    local expected_status=${3:-200}
-    local check_type=${4:-GET}
+    local url=$1 description=$2 expected_status=${3:-200}
     
     TOTAL_CHECKS=$((TOTAL_CHECKS + 1))
     
-    log_verbose "Checking: $url"
-    
-    if [[ $check_type == "GET" ]]; then
-        response=$(curl -s -w "%{http_code}:%{time_total}" -o /tmp/health_response --connect-timeout $TIMEOUT --max-time $TIMEOUT "$url" 2>/dev/null)
+    if check_http_endpoint "$url" "$description" "$expected_status" "$TIMEOUT"; then
+        PASSED_CHECKS=$((PASSED_CHECKS + 1))
+        return 0
     else
-        response=$(curl -s -I -w "%{http_code}:%{time_total}" --connect-timeout $TIMEOUT --max-time $TIMEOUT "$url" 2>/dev/null | tail -1)
-    fi
-    
-    if [[ $? -eq 0 ]]; then
-        status_code=$(echo "$response" | cut -d':' -f1)
-        response_time=$(echo "$response" | cut -d':' -f2)
-        
-        if [[ $status_code -eq $expected_status ]]; then
-            echo -e "✅ $description: ${GREEN}OK${NC} (${status_code}, ${response_time}s)"
-            PASSED_CHECKS=$((PASSED_CHECKS + 1))
-            return 0
-        else
-            echo -e "❌ $description: ${RED}FAILED${NC} (${status_code}, ${response_time}s)"
-            FAILED_CHECKS=$((FAILED_CHECKS + 1))
-            if [[ "$VERBOSE" == "true" && -f /tmp/health_response ]]; then
-                echo -e "${YELLOW}Response body:${NC}"
-                cat /tmp/health_response | head -5
-            fi
-            return 1
-        fi
-    else
-        echo -e "❌ $description: ${RED}CONNECTION FAILED${NC}"
         FAILED_CHECKS=$((FAILED_CHECKS + 1))
         return 1
     fi
@@ -119,28 +83,24 @@ check_json_endpoint() {
 
 # Function to check Kubernetes resources
 check_k8s_resource() {
-    local resource_type=$1
-    local resource_name=$2
-    local namespace=${3:-default}
-    local description=$4
+    local resource_type=$1 resource_name=$2 namespace=${3:-default} description=$4
     
     TOTAL_CHECKS=$((TOTAL_CHECKS + 1))
-    
     log_verbose "Checking Kubernetes $resource_type: $resource_name in namespace $namespace"
     
-    if kubectl get $resource_type $resource_name -n $namespace > /dev/null 2>&1; then
-        status=$(kubectl get $resource_type $resource_name -n $namespace -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)
+    if kubectl get "$resource_type" "$resource_name" -n "$namespace" > /dev/null 2>&1; then
+        local status=$(k8s_check_resource "$resource_type" "$resource_name" "$namespace")
         if [[ "$status" == "True" ]]; then
-            echo -e "✅ $description: ${GREEN}READY${NC}"
+            log_success "$description: READY"
             PASSED_CHECKS=$((PASSED_CHECKS + 1))
             return 0
         else
-            echo -e "⚠️  $description: ${YELLOW}NOT READY${NC}"
+            log_warning "$description: NOT READY"
             FAILED_CHECKS=$((FAILED_CHECKS + 1))
             return 1
         fi
     else
-        echo -e "❌ $description: ${RED}NOT FOUND${NC}"
+        log_error "$description: NOT FOUND"
         FAILED_CHECKS=$((FAILED_CHECKS + 1))
         return 1
     fi
