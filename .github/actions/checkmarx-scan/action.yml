@@ -63,7 +63,7 @@ inputs:
 outputs:
   scan_id:
     description: 'Checkmarx scan ID'
-    value: ${{ steps.generate-scan-id.outputs.scan_id }}
+    value: ${{ steps.setup.outputs.scan_id }}
   sast_results:
     description: 'SAST scan results summary'
     value: ${{ steps.sast-scan.outputs.results }}
@@ -75,423 +75,135 @@ outputs:
     value: ${{ steps.kics-scan.outputs.results }}
   overall_results:
     description: 'Combined scan results summary'
-    value: ${{ steps.combine-results.outputs.results }}
+    value: ${{ steps.evaluate-results.outputs.overall_results }}
   scan_status:
     description: 'Overall Checkmarx scan status'
-    value: ${{ steps.evaluate-results.outputs.status }}
+    value: ${{ steps.evaluate-results.outputs.scan_status }}
 
 runs:
   using: 'composite'
   steps:
-    - name: Validate Checkmarx Configuration
+    - name: Validate Configuration and Setup
+      id: setup
       shell: bash
       run: |
-        if [[ "${{ inputs.checkmarx_enabled }}" != "true" ]]; then
-          echo "ℹ️ Checkmarx scanning is disabled"
+        # Load Checkmarx utilities
+        source ${{ github.workspace }}/scripts/checkmarx-utils.sh
+        
+        # Validate configuration
+        if ! cx_validate_config "${{ inputs.checkmarx_enabled }}" "${{ inputs.checkmarx_url }}" "${{ inputs.cx_tenant }}" "${{ inputs.checkmarx_client_id }}" "${{ inputs.checkmarx_client_secret }}"; then
+          echo "scan_id=disabled" >> $GITHUB_OUTPUT
           exit 0
         fi
         
-        if [[ -z "${{ inputs.checkmarx_url }}" ]]; then
-          echo "❌ CHECKMARX_URL is required when Checkmarx is enabled"
-          exit 1
-        fi
-        
-        if [[ -z "${{ inputs.cx_tenant }}" || -z "${{ inputs.checkmarx_client_id }}" || -z "${{ inputs.checkmarx_client_secret }}" ]]; then
-          echo "❌ CHECKMARX_TENANT, CHECKMARX_CLIENT_ID, and CHECKMARX_CLIENT_SECRET are required for OAuth2 authentication"
-          exit 1
-        fi
-        
-        echo "✅ Checkmarx configuration validated"
-        echo "Checkmarx URL: ${{ inputs.checkmarx_url }}"
-        echo "Scan Types: ${{ inputs.checkmarx_scan_types }}"
-        echo "Application Type: ${{ inputs.application_type }}"
-
-    - name: Generate Scan ID
-      id: generate-scan-id
-      if: inputs.checkmarx_enabled == 'true'
-      shell: bash
-      run: |
-        # Generate unique scan ID
+        # Generate scan ID
         SCAN_ID="CX-$(date +%Y%m%d%H%M%S)-${{ inputs.application_name }}"
         echo "scan_id=$SCAN_ID" >> $GITHUB_OUTPUT
-        echo "📋 Generated Scan ID: $SCAN_ID"
-
-    - name: Setup Checkmarx Tools
-      if: inputs.checkmarx_enabled == 'true'
-      shell: bash
-      run: |
-        echo "🔧 Setting up Checkmarx scanning tools..."
+        log_info "Generated Scan ID: $SCAN_ID"
         
-        # Parse scan types
-        IFS=',' read -ra SCAN_TYPES <<< "${{ inputs.checkmarx_scan_types }}"
-        
-        # Install required tools based on scan types
-        for scan_type in "${SCAN_TYPES[@]}"; do
-          scan_type=$(echo "$scan_type" | tr '[:upper:]' '[:lower:]' | xargs)
-          
-          case "$scan_type" in
-            "sast")
-              echo "📦 Setting up Checkmarx SAST CLI..."
-              # Download Checkmarx CLI
-              curl -L -o cx-cli.zip "https://download.checkmarx.com/9.0.0/Plugins/CxConsolePlugin-2022.4.2.zip"
-              unzip -q cx-cli.zip
-              chmod +x ./CxConsolePlugin-*/runCxConsole.sh
-              echo "✅ Checkmarx SAST CLI installed"
-              ;;
-              
-            "sca")
-              echo "📦 Setting up Checkmarx SCA CLI..."
-              # Install CxSCA CLI
-              curl -L -o cxsca.tar.gz "https://sca-downloads.s3.amazonaws.com/cli/latest/ScaResolver-linux64.tar.gz"
-              tar -xzf cxsca.tar.gz
-              chmod +x ./ScaResolver
-              echo "✅ Checkmarx SCA CLI installed"
-              ;;
-              
-            "kics")
-              echo "📦 Setting up KICS..."
-              # Install KICS
-              curl -L -o kics.tar.gz "https://github.com/Checkmarx/kics/releases/latest/download/kics_1.7.13_linux_x64.tar.gz"
-              tar -xzf kics.tar.gz
-              chmod +x ./kics
-              echo "✅ KICS installed"
-              ;;
-          esac
-        done
-        
-        echo "🔧 Checkmarx tools setup completed"
+        # Setup tools
+        cx_setup_tools "${{ inputs.checkmarx_scan_types }}"
 
     - name: SAST Scan
       id: sast-scan
-      if: inputs.checkmarx_enabled == 'true' && contains(inputs.checkmarx_scan_types, 'sast')
+      if: steps.setup.outputs.scan_id != 'disabled' && contains(inputs.checkmarx_scan_types, 'sast')
       shell: bash
       run: |
-        echo "🛡️ Starting Checkmarx SAST scan..."
+        source ${{ github.workspace }}/scripts/checkmarx-utils.sh
         
-        # Authenticate using OAuth2 and get access token
-        echo "🔐 Authenticating with Checkmarx using OAuth2..."
-        ACCESS_TOKEN=$(curl -s -X POST "${{ inputs.checkmarx_url }}/cxrestapi/auth/identity/connect/token" \
-          -H "Content-Type: application/x-www-form-urlencoded" \
-          -d "username=${{ inputs.checkmarx_client_id }}" \
-          -d "password=${{ inputs.checkmarx_client_secret }}" \
-          -d "grant_type=password" \
-          -d "scope=sast_rest_api" \
-          -d "client_id=resource_owner_client" \
-          -d "client_secret=014DF517-39D1-4453-B7B3-9930C563627C" | \
-          jq -r '.access_token // empty')
+        # Authenticate and run SAST scan
+        ACCESS_TOKEN=$(cx_authenticate "${{ inputs.checkmarx_url }}" "${{ inputs.checkmarx_client_id }}" "${{ inputs.checkmarx_client_secret }}")
+        cx_run_sast "${{ inputs.checkmarx_url }}" "$ACCESS_TOKEN" "${{ inputs.application_name }}-SAST-${{ steps.setup.outputs.scan_id }}" "${{ inputs.checkmarx_sast_preset }}" "${{ inputs.build_context }}"
         
-        if [[ -z "$ACCESS_TOKEN" ]]; then
-          echo "❌ Failed to obtain OAuth2 access token"
-          exit 1
-        fi
+        # Parse results
+        SAST_COUNTS=$(cx_parse_results "sast" "sast-results.xml")
+        read -r HIGH_SAST MEDIUM_SAST LOW_SAST <<< "$SAST_COUNTS"
         
-        echo "✅ Successfully authenticated with Checkmarx"
+        SAST_SUMMARY="H${HIGH_SAST}/M${MEDIUM_SAST}/L${LOW_SAST}"
+        [[ ! -f "sast-results.xml" ]] && SAST_SUMMARY="N/A"
         
-        # Run SAST scan using OAuth2 token
-        ./CxConsolePlugin-*/runCxConsole.sh Scan \
-          -v \
-          -CxServer ${{ inputs.checkmarx_url }} \
-          -CxToken "$ACCESS_TOKEN" \
-          -ProjectName "${{ inputs.application_name }}-SAST-${{ steps.generate-scan-id.outputs.scan_id }}" \
-          -preset "${{ inputs.checkmarx_sast_preset }}" \
-          -LocationType folder \
-          -LocationPath ${{ inputs.build_context }} \
-          -ReportXML sast-results.xml \
-          -ReportPDF sast-results.pdf \
-          -ReportCSV sast-results.csv || {
-          echo "⚠️ SAST scan encountered issues, but continuing..."
-        }
-        
-        # Parse SAST results
-        if [[ -f "sast-results.xml" ]]; then
-          echo "📊 Parsing SAST results..."
-          
-          # Extract vulnerability counts using grep and wc
-          HIGH_SAST=$(grep -o '<Result.*Severity="High"' sast-results.xml | wc -l || echo "0")
-          MEDIUM_SAST=$(grep -o '<Result.*Severity="Medium"' sast-results.xml | wc -l || echo "0")
-          LOW_SAST=$(grep -o '<Result.*Severity="Low"' sast-results.xml | wc -l || echo "0")
-          
-          echo "📊 SAST Results: High=$HIGH_SAST, Medium=$MEDIUM_SAST, Low=$LOW_SAST"
-          SAST_SUMMARY="H${HIGH_SAST}/M${MEDIUM_SAST}/L${LOW_SAST}"
-          
-          # Store individual counts for threshold checking
-          echo "HIGH_SAST=$HIGH_SAST" >> $GITHUB_ENV
-          echo "MEDIUM_SAST=$MEDIUM_SAST" >> $GITHUB_ENV
-          echo "LOW_SAST=$LOW_SAST" >> $GITHUB_ENV
-        else
-          echo "⚠️ SAST results file not found"
-          SAST_SUMMARY="N/A"
-          echo "HIGH_SAST=0" >> $GITHUB_ENV
-          echo "MEDIUM_SAST=0" >> $GITHUB_ENV
-          echo "LOW_SAST=0" >> $GITHUB_ENV
-        fi
-        
+        # Store results
+        echo "HIGH_SAST=$HIGH_SAST" >> $GITHUB_ENV
+        echo "MEDIUM_SAST=$MEDIUM_SAST" >> $GITHUB_ENV
+        echo "LOW_SAST=$LOW_SAST" >> $GITHUB_ENV
         echo "results=$SAST_SUMMARY" >> $GITHUB_OUTPUT
-        echo "✅ SAST scan completed: $SAST_SUMMARY"
 
     - name: SCA Scan
       id: sca-scan
-      if: inputs.checkmarx_enabled == 'true' && contains(inputs.checkmarx_scan_types, 'sca')
+      if: steps.setup.outputs.scan_id != 'disabled' && contains(inputs.checkmarx_scan_types, 'sca')
       shell: bash
       run: |
-        echo "📦 Starting Checkmarx SCA scan..."
+        source ${{ github.workspace }}/scripts/checkmarx-utils.sh
         
         # Run SCA scan
-        ./ScaResolver \
-          -s ${{ inputs.build_context }} \
-          -n "${{ inputs.application_name }}-SCA-${{ steps.generate-scan-id.outputs.scan_id }}" \
-          --resolver-result-path sca-results.json \
-          --resolver ${{ inputs.checkmarx_sca_resolver }} || {
-          echo "⚠️ SCA scan encountered issues, but continuing..."
-        }
+        cx_run_sca "${{ inputs.application_name }}-SCA-${{ steps.setup.outputs.scan_id }}" "${{ inputs.build_context }}" "${{ inputs.checkmarx_sca_resolver }}"
         
-        # Parse SCA results
-        if [[ -f "sca-results.json" ]]; then
-          echo "📊 Parsing SCA results..."
-          
-          # Extract vulnerability counts using jq
-          HIGH_SCA=$(jq -r '[.vulnerabilities[]? | select(.severity=="HIGH")] | length' sca-results.json 2>/dev/null || echo "0")
-          MEDIUM_SCA=$(jq -r '[.vulnerabilities[]? | select(.severity=="MEDIUM")] | length' sca-results.json 2>/dev/null || echo "0")
-          LOW_SCA=$(jq -r '[.vulnerabilities[]? | select(.severity=="LOW")] | length' sca-results.json 2>/dev/null || echo "0")
-          
-          # Fallback to grep if jq fails
-          if [[ "$HIGH_SCA" == "null" ]] || [[ -z "$HIGH_SCA" ]]; then
-            HIGH_SCA=$(grep -o '"severity":"HIGH"' sca-results.json | wc -l || echo "0")
-            MEDIUM_SCA=$(grep -o '"severity":"MEDIUM"' sca-results.json | wc -l || echo "0")
-            LOW_SCA=$(grep -o '"severity":"LOW"' sca-results.json | wc -l || echo "0")
-          fi
-          
-          echo "📊 SCA Results: High=$HIGH_SCA, Medium=$MEDIUM_SCA, Low=$LOW_SCA"
-          SCA_SUMMARY="H${HIGH_SCA}/M${MEDIUM_SCA}/L${LOW_SCA}"
-          
-          # Store individual counts for threshold checking
-          echo "HIGH_SCA=$HIGH_SCA" >> $GITHUB_ENV
-          echo "MEDIUM_SCA=$MEDIUM_SCA" >> $GITHUB_ENV
-          echo "LOW_SCA=$LOW_SCA" >> $GITHUB_ENV
-        else
-          echo "⚠️ SCA results file not found"
-          SCA_SUMMARY="N/A"
-          echo "HIGH_SCA=0" >> $GITHUB_ENV
-          echo "MEDIUM_SCA=0" >> $GITHUB_ENV
-          echo "LOW_SCA=0" >> $GITHUB_ENV
-        fi
+        # Parse results
+        SCA_COUNTS=$(cx_parse_results "sca" "sca-results.json")
+        read -r HIGH_SCA MEDIUM_SCA LOW_SCA <<< "$SCA_COUNTS"
         
+        SCA_SUMMARY="H${HIGH_SCA}/M${MEDIUM_SCA}/L${LOW_SCA}"
+        [[ ! -f "sca-results.json" ]] && SCA_SUMMARY="N/A"
+        
+        # Store results
+        echo "HIGH_SCA=$HIGH_SCA" >> $GITHUB_ENV
+        echo "MEDIUM_SCA=$MEDIUM_SCA" >> $GITHUB_ENV
+        echo "LOW_SCA=$LOW_SCA" >> $GITHUB_ENV
         echo "results=$SCA_SUMMARY" >> $GITHUB_OUTPUT
-        echo "✅ SCA scan completed: $SCA_SUMMARY"
 
     - name: KICS Scan
       id: kics-scan
-      if: inputs.checkmarx_enabled == 'true' && contains(inputs.checkmarx_scan_types, 'kics')
+      if: steps.setup.outputs.scan_id != 'disabled' && contains(inputs.checkmarx_scan_types, 'kics')
       shell: bash
       run: |
-        echo "🏗️ Starting KICS Infrastructure as Code scan..."
+        source ${{ github.workspace }}/scripts/checkmarx-utils.sh
         
         # Run KICS scan
-        ./kics scan \
-          --path ${{ inputs.build_context }} \
-          --output-path kics-results \
-          --report-formats json,html \
-          --platforms ${{ inputs.checkmarx_kics_platforms }} \
-          --verbose || {
-          echo "⚠️ KICS scan encountered issues, but continuing..."
-        }
+        cx_run_kics "${{ inputs.build_context }}" "${{ inputs.checkmarx_kics_platforms }}"
         
-        # Parse KICS results
-        if [[ -f "kics-results/results.json" ]]; then
-          echo "📊 Parsing KICS results..."
-          
-          # Extract vulnerability counts using jq
-          HIGH_KICS=$(jq -r '[.queries[]? | select(.severity=="HIGH")] | length' kics-results/results.json 2>/dev/null || echo "0")
-          MEDIUM_KICS=$(jq -r '[.queries[]? | select(.severity=="MEDIUM")] | length' kics-results/results.json 2>/dev/null || echo "0")
-          LOW_KICS=$(jq -r '[.queries[]? | select(.severity=="LOW")] | length' kics-results/results.json 2>/dev/null || echo "0")
-          
-          # Fallback to grep if jq fails
-          if [[ "$HIGH_KICS" == "null" ]] || [[ -z "$HIGH_KICS" ]]; then
-            HIGH_KICS=$(grep -o '"severity":"HIGH"' kics-results/results.json | wc -l || echo "0")
-            MEDIUM_KICS=$(grep -o '"severity":"MEDIUM"' kics-results/results.json | wc -l || echo "0")
-            LOW_KICS=$(grep -o '"severity":"LOW"' kics-results/results.json | wc -l || echo "0")
-          fi
-          
-          echo "📊 KICS Results: High=$HIGH_KICS, Medium=$MEDIUM_KICS, Low=$LOW_KICS"
-          KICS_SUMMARY="H${HIGH_KICS}/M${MEDIUM_KICS}/L${LOW_KICS}"
-          
-          # Store individual counts for threshold checking
-          echo "HIGH_KICS=$HIGH_KICS" >> $GITHUB_ENV
-          echo "MEDIUM_KICS=$MEDIUM_KICS" >> $GITHUB_ENV
-          echo "LOW_KICS=$LOW_KICS" >> $GITHUB_ENV
-        else
-          echo "⚠️ KICS results file not found"
-          KICS_SUMMARY="N/A"
-          echo "HIGH_KICS=0" >> $GITHUB_ENV
-          echo "MEDIUM_KICS=0" >> $GITHUB_ENV
-          echo "LOW_KICS=0" >> $GITHUB_ENV
-        fi
+        # Parse results
+        KICS_COUNTS=$(cx_parse_results "kics" "kics-results/results.json")
+        read -r HIGH_KICS MEDIUM_KICS LOW_KICS <<< "$KICS_COUNTS"
         
+        KICS_SUMMARY="H${HIGH_KICS}/M${MEDIUM_KICS}/L${LOW_KICS}"
+        [[ ! -f "kics-results/results.json" ]] && KICS_SUMMARY="N/A"
+        
+        # Store results
+        echo "HIGH_KICS=$HIGH_KICS" >> $GITHUB_ENV
+        echo "MEDIUM_KICS=$MEDIUM_KICS" >> $GITHUB_ENV
+        echo "LOW_KICS=$LOW_KICS" >> $GITHUB_ENV
         echo "results=$KICS_SUMMARY" >> $GITHUB_OUTPUT
-        echo "✅ KICS scan completed: $KICS_SUMMARY"
 
-    - name: Combine Results
-      id: combine-results
-      if: inputs.checkmarx_enabled == 'true'
-      shell: bash
-      run: |
-        echo "📋 Combining all Checkmarx scan results..."
-        
-        COMBINED_RESULTS=""
-        
-        # Add SAST results if available
-        if [[ "${{ steps.sast-scan.outputs.results }}" != "" && "${{ steps.sast-scan.outputs.results }}" != "N/A" ]]; then
-          COMBINED_RESULTS="${COMBINED_RESULTS}SAST:${{ steps.sast-scan.outputs.results }} "
-        fi
-        
-        # Add SCA results if available
-        if [[ "${{ steps.sca-scan.outputs.results }}" != "" && "${{ steps.sca-scan.outputs.results }}" != "N/A" ]]; then
-          COMBINED_RESULTS="${COMBINED_RESULTS}SCA:${{ steps.sca-scan.outputs.results }} "
-        fi
-        
-        # Add KICS results if available
-        if [[ "${{ steps.kics-scan.outputs.results }}" != "" && "${{ steps.kics-scan.outputs.results }}" != "N/A" ]]; then
-          COMBINED_RESULTS="${COMBINED_RESULTS}KICS:${{ steps.kics-scan.outputs.results }} "
-        fi
-        
-        # Trim whitespace
-        COMBINED_RESULTS=$(echo "$COMBINED_RESULTS" | xargs)
-        
-        if [[ -z "$COMBINED_RESULTS" ]]; then
-          COMBINED_RESULTS="No scans completed"
-        fi
-        
-        echo "results=$COMBINED_RESULTS" >> $GITHUB_OUTPUT
-        echo "📊 Combined Results: $COMBINED_RESULTS"
-
-    - name: Evaluate Results Against Thresholds
+    - name: Evaluate Results and Generate Report
       id: evaluate-results
-      if: inputs.checkmarx_enabled == 'true'
+      if: steps.setup.outputs.scan_id != 'disabled'
       shell: bash
       run: |
-        echo "📋 Evaluating Checkmarx results against thresholds..."
+        source ${{ github.workspace }}/scripts/checkmarx-utils.sh
         
-        # Get thresholds
-        HIGH_THRESHOLD="${{ inputs.checkmarx_high_threshold }}"
-        MEDIUM_THRESHOLD="${{ inputs.checkmarx_medium_threshold }}"
-        LOW_THRESHOLD="${{ inputs.checkmarx_low_threshold }}"
-        FAIL_BUILD="${{ inputs.checkmarx_fail_build }}"
+        # Combine results
+        COMBINED_RESULTS=""
+        [[ "${{ steps.sast-scan.outputs.results }}" != "" && "${{ steps.sast-scan.outputs.results }}" != "N/A" ]] && COMBINED_RESULTS="${COMBINED_RESULTS}SAST:${{ steps.sast-scan.outputs.results }} "
+        [[ "${{ steps.sca-scan.outputs.results }}" != "" && "${{ steps.sca-scan.outputs.results }}" != "N/A" ]] && COMBINED_RESULTS="${COMBINED_RESULTS}SCA:${{ steps.sca-scan.outputs.results }} "
+        [[ "${{ steps.kics-scan.outputs.results }}" != "" && "${{ steps.kics-scan.outputs.results }}" != "N/A" ]] && COMBINED_RESULTS="${COMBINED_RESULTS}KICS:${{ steps.kics-scan.outputs.results }} "
+        COMBINED_RESULTS=$(echo "$COMBINED_RESULTS" | xargs)
+        [[ -z "$COMBINED_RESULTS" ]] && COMBINED_RESULTS="No scans completed"
         
-        echo "🎯 Thresholds: High≤$HIGH_THRESHOLD, Medium≤$MEDIUM_THRESHOLD, Low≤$LOW_THRESHOLD"
-        
-        # Initialize counters
-        TOTAL_HIGH=0
-        TOTAL_MEDIUM=0
-        TOTAL_LOW=0
-        
-        OVERALL_STATUS="PASSED"
-        FAILURES=()
-        
-        # Sum up all high severity issues
+        # Calculate totals and evaluate thresholds
         TOTAL_HIGH=$((${HIGH_SAST:-0} + ${HIGH_SCA:-0} + ${HIGH_KICS:-0}))
         TOTAL_MEDIUM=$((${MEDIUM_SAST:-0} + ${MEDIUM_SCA:-0} + ${MEDIUM_KICS:-0}))
         TOTAL_LOW=$((${LOW_SAST:-0} + ${LOW_SCA:-0} + ${LOW_KICS:-0}))
         
-        echo "📊 Total Issues: High=$TOTAL_HIGH, Medium=$TOTAL_MEDIUM, Low=$TOTAL_LOW"
+        OVERALL_STATUS=$(cx_evaluate_thresholds "$TOTAL_HIGH" "$TOTAL_MEDIUM" "$TOTAL_LOW" "${{ inputs.checkmarx_high_threshold }}" "${{ inputs.checkmarx_medium_threshold }}" "${{ inputs.checkmarx_low_threshold }}" "${{ inputs.checkmarx_fail_build }}")
         
-        # Check thresholds
-        if [[ $TOTAL_HIGH -gt $HIGH_THRESHOLD ]]; then
-          FAILURES+=("High severity: $TOTAL_HIGH > $HIGH_THRESHOLD")
-          OVERALL_STATUS="FAILED"
-        fi
+        # Generate report
+        cx_generate_report "${{ inputs.application_name }}" "${{ steps.setup.outputs.scan_id }}" "${{ inputs.checkmarx_scan_types }}" "${{ inputs.checkmarx_sast_preset }}" "${{ inputs.checkmarx_sca_resolver }}" "${{ inputs.checkmarx_kics_platforms }}" "${{ steps.sast-scan.outputs.results }}" "${{ steps.sca-scan.outputs.results }}" "${{ steps.kics-scan.outputs.results }}" "${{ inputs.checkmarx_high_threshold }}" "${{ inputs.checkmarx_medium_threshold }}" "${{ inputs.checkmarx_low_threshold }}" "$OVERALL_STATUS"
         
-        if [[ $TOTAL_MEDIUM -gt $MEDIUM_THRESHOLD ]]; then
-          FAILURES+=("Medium severity: $TOTAL_MEDIUM > $MEDIUM_THRESHOLD")
-          OVERALL_STATUS="FAILED"
-        fi
-        
-        if [[ $TOTAL_LOW -gt $LOW_THRESHOLD ]]; then
-          FAILURES+=("Low severity: $TOTAL_LOW > $LOW_THRESHOLD")
-          OVERALL_STATUS="FAILED"
-        fi
-        
-        # Report results
-        if [[ "$OVERALL_STATUS" == "PASSED" ]]; then
-          echo "✅ Checkmarx scans PASSED - All thresholds met"
-          echo "   High: $TOTAL_HIGH (≤$HIGH_THRESHOLD)"
-          echo "   Medium: $TOTAL_MEDIUM (≤$MEDIUM_THRESHOLD)"
-          echo "   Low: $TOTAL_LOW (≤$LOW_THRESHOLD)"
-        else
-          echo "❌ Checkmarx scans FAILED - Threshold violations:"
-          for failure in "${FAILURES[@]}"; do
-            echo "   - $failure"
-          done
-          
-          if [[ "$FAIL_BUILD" != "true" ]]; then
-            echo "⚠️ Build failure disabled - continuing despite threshold violations"
-            OVERALL_STATUS="PASSED"
-          fi
-        fi
-        
-        echo "status=$OVERALL_STATUS" >> $GITHUB_OUTPUT
+        # Set outputs
+        cx_set_outputs "${{ steps.setup.outputs.scan_id }}" "${{ steps.sast-scan.outputs.results }}" "${{ steps.sca-scan.outputs.results }}" "${{ steps.kics-scan.outputs.results }}" "$COMBINED_RESULTS" "$OVERALL_STATUS"
 
-    - name: Generate Checkmarx Report
-      if: inputs.checkmarx_enabled == 'true'
-      shell: bash
-      run: |
-        echo "📝 Generating Checkmarx scan report..."
-        
-        cat > checkmarx-scan-report.md << EOF
-        # 🛡️ Checkmarx Security Scan Report
-        
-        ## Project: ${{ inputs.application_name }}
-        ## Scan ID: ${{ steps.generate-scan-id.outputs.scan_id }}
-        ## Scan Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-        
-        ### Scan Configuration
-        - **Scan Types**: ${{ inputs.checkmarx_scan_types }}
-        - **SAST Preset**: ${{ inputs.checkmarx_sast_preset }}
-        - **SCA Resolver**: ${{ inputs.checkmarx_sca_resolver }}
-        - **KICS Platforms**: ${{ inputs.checkmarx_kics_platforms }}
-        
-        ### Results Summary
-        | Scan Type | High | Medium | Low | Status |
-        |-----------|------|--------|-----|--------|
-        EOF
-        
-        # Add SAST results if available
-        if [[ "${{ steps.sast-scan.outputs.results }}" != "" && "${{ steps.sast-scan.outputs.results }}" != "N/A" ]]; then
-          cat >> checkmarx-scan-report.md << EOF
-        | SAST | ${HIGH_SAST:-0} | ${MEDIUM_SAST:-0} | ${LOW_SAST:-0} | ${{ env.HIGH_SAST <= inputs.checkmarx_high_threshold && env.MEDIUM_SAST <= inputs.checkmarx_medium_threshold && env.LOW_SAST <= inputs.checkmarx_low_threshold && '✅ PASS' || '❌ FAIL' }} |
-        EOF
-        fi
-        
-        # Add SCA results if available
-        if [[ "${{ steps.sca-scan.outputs.results }}" != "" && "${{ steps.sca-scan.outputs.results }}" != "N/A" ]]; then
-          cat >> checkmarx-scan-report.md << EOF
-        | SCA | ${HIGH_SCA:-0} | ${MEDIUM_SCA:-0} | ${LOW_SCA:-0} | ${{ env.HIGH_SCA <= inputs.checkmarx_high_threshold && env.MEDIUM_SCA <= inputs.checkmarx_medium_threshold && env.LOW_SCA <= inputs.checkmarx_low_threshold && '✅ PASS' || '❌ FAIL' }} |
-        EOF
-        fi
-        
-        # Add KICS results if available
-        if [[ "${{ steps.kics-scan.outputs.results }}" != "" && "${{ steps.kics-scan.outputs.results }}" != "N/A" ]]; then
-          cat >> checkmarx-scan-report.md << EOF
-        | KICS | ${HIGH_KICS:-0} | ${MEDIUM_KICS:-0} | ${LOW_KICS:-0} | ${{ env.HIGH_KICS <= inputs.checkmarx_high_threshold && env.MEDIUM_KICS <= inputs.checkmarx_medium_threshold && env.LOW_KICS <= inputs.checkmarx_low_threshold && '✅ PASS' || '❌ FAIL' }} |
-        EOF
-        fi
-        
-        cat >> checkmarx-scan-report.md << EOF
-        
-        ### Thresholds
-        - **High Severity**: ≤${{ inputs.checkmarx_high_threshold }}
-        - **Medium Severity**: ≤${{ inputs.checkmarx_medium_threshold }}
-        - **Low Severity**: ≤${{ inputs.checkmarx_low_threshold }}
-        
-        ### Overall Status: ${{ steps.evaluate-results.outputs.status }}
-        
-        ### Combined Results: ${{ steps.combine-results.outputs.results }}
-        EOF
-        
-        echo "✅ Checkmarx report generated"
-        cat checkmarx-scan-report.md
-
-    - name: Upload Checkmarx Artifacts
-      if: always() && inputs.checkmarx_enabled == 'true'
+    - name: Upload Artifacts and Final Check
+      if: always() && steps.setup.outputs.scan_id != 'disabled'
       uses: actions/upload-artifact@v4
       with:
         name: checkmarx-scan-results-${{ inputs.application_name }}
@@ -503,13 +215,14 @@ runs:
         retention-days: 30
 
     - name: Final Status Check
-      if: inputs.checkmarx_enabled == 'true'
+      if: steps.setup.outputs.scan_id != 'disabled'
       shell: bash
       run: |
-        STATUS="${{ steps.evaluate-results.outputs.status }}"
+        source ${{ github.workspace }}/scripts/checkmarx-utils.sh
+        STATUS="${{ steps.evaluate-results.outputs.scan_status }}"
         if [[ "$STATUS" == "FAILED" ]]; then
-          echo "❌ Checkmarx scan failed - check the report for details"
+          log_error "Checkmarx scan failed - check the report for details"
           exit 1
         else
-          echo "✅ Checkmarx scan completed successfully"
+          log_success "Checkmarx scan completed successfully"
         fi
