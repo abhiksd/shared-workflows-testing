@@ -9,7 +9,7 @@ This guide covers verification for:
 - **Node.js Express Backend Services** (3 services)
 - **Monitoring Stack** (Prometheus, Grafana, Loki, AlertManager)
 - **Infrastructure Components** (Ingress, Load Balancer, DNS)
-- **Security Components** (HTTPS, Authentication, Key Vault)
+- **Security Components** (HTTPS, Authentication)
 
 ## 📋 **Quick Health Check Summary**
 
@@ -309,19 +309,7 @@ for env in dev staging production; do
 done
 ```
 
-### **Azure Key Vault Integration**
-```bash
-echo "=== Key Vault Integration Verification ==="
 
-# Check SecretProviderClass
-kubectl get secretproviderclass --all-namespaces
-
-# Verify secrets are mounted
-kubectl get secrets --all-namespaces | grep azure-keyvault
-
-# Check CSI driver pods
-kubectl get pods -n kube-system | grep secrets-store-csi-driver
-```
 
 ### **Network Policies** 
 ```bash
@@ -554,7 +542,7 @@ kubectl exec -n monitoring deployment/prometheus -- curl java-backend1.default.s
 
 #### **Security**
 - [ ] HTTPS is enforced on all endpoints
-- [ ] Azure Key Vault integration is working
+
 - [ ] Network policies are allowing necessary traffic
 - [ ] Authentication is working where required
 

@@ -9,7 +9,7 @@ A production-ready Node.js backend application built with Express.js, featuring 
 - **Security**: Helmet, CORS, rate limiting, input validation
 - **Database**: PostgreSQL with Knex.js ORM
 - **Caching**: Redis integration with fallback support
-- **Azure Integration**: Key Vault, Blob Storage, Application Insights
+- **Azure Integration**: Blob Storage, Application Insights
 - **File Uploads**: Multipart file handling with Azure Blob Storage
 - **API Documentation**: Swagger/OpenAPI integration
 - **Logging**: Structured logging with Winston
@@ -104,10 +104,6 @@ The application uses environment-specific configuration files:
   },
   azure: {
     enabled: false,
-    keyVault: {
-      enabled: false,
-      uri: ""
-    },
     storage: {
       enabled: false,
       accountName: ""
@@ -130,7 +126,7 @@ The application uses environment-specific configuration files:
 | `REDIS_HOST` | Redis host | `localhost` |
 | `REDIS_PORT` | Redis port | `6379` |
 | `JWT_SECRET` | JWT secret key | Required |
-| `AZURE_KEYVAULT_URI` | Azure Key Vault URI | Optional |
+
 
 ## 📡 API Endpoints
 
@@ -278,7 +274,7 @@ FROM node:18-alpine AS production
 
 Supports Azure services:
 
-- **Azure Key Vault**: Secret management
+
 - **Azure Blob Storage**: File storage
 - **Azure Application Insights**: Monitoring
 - **Azure Database for PostgreSQL**: Database

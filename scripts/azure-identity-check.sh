@@ -18,7 +18,7 @@ NC='\033[0m' # No Color
 VERBOSE=false
 CHECK_PERMISSIONS=false
 RESOURCE_GROUP=""
-KEYVAULT_NAME=""
+
 SUBSCRIPTION_ID=""
 
 # Function to print colored output
@@ -62,7 +62,7 @@ Options:
     -v, --verbose               Enable verbose output
     -p, --check-permissions     Check detailed permissions
     -g, --resource-group NAME   Check access to specific resource group
-    -k, --keyvault NAME         Check access to specific Key Vault
+
     -s, --subscription ID       Check specific subscription
     --detailed                  Show detailed information for all checks
     -h, --help                  Show this help message
@@ -71,7 +71,7 @@ Examples:
     $0                                          # Basic identity check
     $0 -v                                       # Verbose output
     $0 -p                                       # Include permission checks
-    $0 -g myapp-rg -k myapp-kv-dev             # Check specific resources
+    $0 -g myapp-rg                              # Check specific resource group
     $0 --detailed -s subscription-id            # Comprehensive check
 
 EOF
@@ -224,23 +224,7 @@ check_resource_access() {
         fi
     fi
     
-    # Check Key Vault access if provided
-    if [[ -n "$KEYVAULT_NAME" ]]; then
-        print_info "Checking Key Vault access: $KEYVAULT_NAME"
-        if az keyvault show --name "$KEYVAULT_NAME" --query "{Name:name, Location:location, Sku:properties.sku.name}" -o table 2>/dev/null; then
-            print_success "Can access Key Vault: $KEYVAULT_NAME"
-            
-            # Test secret operations
-            print_info "Testing Key Vault secret operations..."
-            if az keyvault secret list --vault-name "$KEYVAULT_NAME" --maxresults 1 --output none 2>/dev/null; then
-                print_success "Can list secrets in Key Vault"
-            else
-                print_warning "Cannot list secrets - may need additional permissions"
-            fi
-        else
-            print_error "Cannot access Key Vault: $KEYVAULT_NAME"
-        fi
-    fi
+
 }
 
 # Function to check role assignments and permissions
@@ -282,11 +266,7 @@ check_permissions() {
         az role assignment list --assignee "$current_user_id" --scope "$rg_scope" --query "[].{Role:roleDefinitionName, Scope:scope}" -o table 2>/dev/null || print_warning "Cannot retrieve resource group permissions"
     fi
     
-    # Check Key Vault permissions if provided
-    if [[ -n "$KEYVAULT_NAME" ]]; then
-        print_info "Key Vault access policies for: $KEYVAULT_NAME"
-        az keyvault show --name "$KEYVAULT_NAME" --query "properties.accessPolicies[?objectId=='$current_user_id'].{ObjectId:objectId, Permissions:permissions}" -o table 2>/dev/null || print_warning "Cannot retrieve Key Vault access policies"
-    fi
+
 }
 
 # Function to test network connectivity
@@ -417,13 +397,7 @@ generate_summary() {
         fi
     fi
     
-    if [[ -n "$KEYVAULT_NAME" ]]; then
-        if az keyvault show --name "$KEYVAULT_NAME" &> /dev/null; then
-            echo "  Key Vault ($KEYVAULT_NAME): ✅ Accessible"
-        else
-            echo "  Key Vault ($KEYVAULT_NAME): ❌ Not accessible"
-        fi
-    fi
+
     
     echo
     print_success "Identity check completed successfully!"
@@ -446,10 +420,7 @@ main() {
                 RESOURCE_GROUP="$2"
                 shift 2
                 ;;
-            -k|--keyvault)
-                KEYVAULT_NAME="$2"
-                shift 2
-                ;;
+
             -s|--subscription)
                 SUBSCRIPTION_ID="$2"
                 shift 2

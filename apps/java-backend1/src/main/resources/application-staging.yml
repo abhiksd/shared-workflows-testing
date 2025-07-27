@@ -185,10 +185,6 @@ app:
 
 # Azure Configuration
 azure:
-  keyvault:
-    enabled: ${AZURE_KEYVAULT_ENABLED:true}
-    uri: ${AZURE_KEYVAULT_URI}
-  
   application-insights:
     instrumentation-key: ${AZURE_APP_INSIGHTS_KEY}
     

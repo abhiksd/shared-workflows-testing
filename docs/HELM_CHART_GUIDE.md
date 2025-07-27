@@ -28,7 +28,7 @@ This guide provides detailed instructions for working with the Helm charts used 
 # All charts include:
 - Kubernetes 1.20+
 - Helm 3.8+
-- Azure Key Vault CSI Driver (optional)
+
 - Prometheus monitoring (optional)
 - Ingress controller (optional)
 ```
@@ -49,7 +49,7 @@ helm/java-app/
     ├── deployment.yaml       # Main application deployment
     ├── ingress.yaml          # Ingress configuration
     ├── poddisruptionbudget.yaml  # PDB for availability
-    ├── secretproviderclass.yaml  # Azure Key Vault integration
+    
     ├── service.yaml          # Service definition
     └── serviceaccount.yaml   # Service account
 ```
@@ -335,46 +335,7 @@ spec:
             {{- toYaml .Values.resources | nindent 12 }}
 ```
 
-### Azure Key Vault Integration
-```yaml
-# secretproviderclass.yaml
-{{- if .Values.azureKeyVault.enabled }}
-apiVersion: secrets-store.csi.x-k8s.io/v1
-kind: SecretProviderClass
-metadata:
-  name: {{ include "java-app.fullname" . }}-secrets
-  namespace: {{ .Release.Namespace }}
-spec:
-  provider: azure
-  parameters:
-    useVMManagedIdentity: "false"
-    usePodIdentity: "false"
-    userAssignedIdentityID: {{ .Values.azureKeyVault.userAssignedIdentityID }}
-    keyvaultName: {{ .Values.azureKeyVault.keyvaultName }}
-    cloudName: ""
-    objects: |
-      array:
-        {{- range .Values.azureKeyVault.secrets }}
-        - |
-          objectName: {{ .objectName }}
-          objectAlias: {{ .objectAlias }}
-          objectType: secret
-        {{- end }}
-    tenantId: {{ .Values.azureKeyVault.tenantId }}
-  {{- if .Values.azureKeyVault.secretObjects }}
-  secretObjects:
-    {{- range .Values.azureKeyVault.secretObjects }}
-    - secretName: {{ .secretName }}
-      type: {{ .type }}
-      data:
-        {{- range .data }}
-        - objectName: {{ .objectName }}
-          key: {{ .key }}
-        {{- end }}
-    {{- end }}
-  {{- end }}
-{{- end }}
-```
+
 
 ## 🌍 Environment-Specific Deployments
 
@@ -461,9 +422,6 @@ monitoring:
 security:
   networkPolicy:
     enabled: true
-
-azureKeyVault:
-  enabled: true
 ```
 
 ### Production Environment (values-production.yaml)
@@ -517,14 +475,7 @@ security:
     runAsUser: 1000
     fsGroup: 2000
 
-azureKeyVault:
-  enabled: true
-  keyvaultName: "prod-keyvault"
-  secrets:
-    - objectName: "database-password"
-      objectAlias: "db-password"
-    - objectName: "jwt-secret"
-      objectAlias: "jwt-secret"
+
 ```
 
 ## 🚀 Advanced Features
@@ -761,7 +712,7 @@ security:
 
 ### Environment Management
 1. **Use separate values files per environment**
-2. **Keep sensitive data in Key Vault**
+2. **Keep sensitive data in Kubernetes secrets**
 3. **Use environment-specific resource sizing**
 4. **Configure appropriate health checks**
 5. **Enable monitoring in staging and production**
@@ -1027,8 +978,7 @@ kubectl delete secret java-app-secrets -n default
 # Persistent Volume Claims
 kubectl delete pvc -l app.kubernetes.io/name=java-app -n default
 
-# Azure Key Vault Secret Provider Class
-kubectl delete secretproviderclass java-app-secrets -n default
+
 
 # Pod Disruption Budget
 kubectl delete poddisruptionbudget java-app-pdb -n default

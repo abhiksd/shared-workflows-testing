@@ -260,13 +260,6 @@ app:
 
 # Azure Configuration
 azure:
-  keyvault:
-    enabled: ${AZURE_KEYVAULT_ENABLED:true}
-    uri: ${AZURE_KEYVAULT_URI}
-    client-id: ${AZURE_KEYVAULT_CLIENT_ID}
-    client-secret: ${AZURE_KEYVAULT_CLIENT_SECRET}
-    tenant-id: ${AZURE_TENANT_ID}
-  
   application-insights:
     instrumentation-key: ${AZURE_APP_INSIGHTS_KEY}
     connection-string: ${AZURE_APP_INSIGHTS_CONNECTION_STRING}

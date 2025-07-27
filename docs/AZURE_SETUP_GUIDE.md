@@ -8,7 +8,7 @@ This guide provides step-by-step instructions for setting up the complete Azure 
 - [Azure Resource Setup](#-azure-resource-setup)
 - [AKS Cluster Configuration](#-aks-cluster-configuration)
 - [Azure Container Registry](#-azure-container-registry)
-- [Azure Key Vault Setup](#-azure-key-vault-setup)
+
 - [Azure Active Directory Configuration](#-azure-active-directory-configuration)
 - [GitHub OIDC Integration](#-github-oidc-integration)
 - [Network Security](#-network-security)
@@ -86,7 +86,7 @@ az group create \
   --location "$LOCATION" \
   --tags Environment=production Project=$PROJECT_NAME
 
-# Shared Resources (ACR, Key Vault)
+# Shared Resources (ACR)
 az group create \
   --name "${RESOURCE_GROUP_PREFIX}-shared" \
   --location "$LOCATION" \
@@ -104,7 +104,7 @@ az aks create \
   --name "aks-${PROJECT_NAME}-dev" \
   --node-count 2 \
   --node-vm-size Standard_D2s_v3 \
-  --enable-addons monitoring,azure-keyvault-secrets-provider \
+  --enable-addons monitoring \
   --enable-managed-identity \
   --enable-oidc-issuer \
   --enable-workload-identity \
@@ -124,7 +124,7 @@ az aks create \
   --name "aks-${PROJECT_NAME}-staging" \
   --node-count 3 \
   --node-vm-size Standard_D4s_v3 \
-  --enable-addons monitoring,azure-keyvault-secrets-provider \
+  --enable-addons monitoring \
   --enable-managed-identity \
   --enable-oidc-issuer \
   --enable-workload-identity \
@@ -147,7 +147,7 @@ az aks create \
   --name "aks-${PROJECT_NAME}-prod" \
   --node-count 5 \
   --node-vm-size Standard_D8s_v3 \
-  --enable-addons monitoring,azure-keyvault-secrets-provider \
+  --enable-addons monitoring \
   --enable-managed-identity \
   --enable-oidc-issuer \
   --enable-workload-identity \
@@ -250,80 +250,6 @@ az acr config content-trust update \
   --status enabled
 ```
 
-## 🔐 Azure Key Vault Setup
-
-### 1. Create Key Vaults
-
-#### Development Key Vault
-```bash
-az keyvault create \
-  --name "kv-${PROJECT_NAME}-dev" \
-  --resource-group "${RESOURCE_GROUP_PREFIX}-dev" \
-  --location "$LOCATION" \
-  --enabled-for-template-deployment true \
-  --enabled-for-disk-encryption true \
-  --enabled-for-deployment true \
-  --enable-rbac-authorization true \
-  --tags Environment=development Project=$PROJECT_NAME
-```
-
-#### Staging Key Vault
-```bash
-az keyvault create \
-  --name "kv-${PROJECT_NAME}-staging" \
-  --resource-group "${RESOURCE_GROUP_PREFIX}-staging" \
-  --location "$LOCATION" \
-  --enabled-for-template-deployment true \
-  --enabled-for-disk-encryption true \
-  --enabled-for-deployment true \
-  --enable-rbac-authorization true \
-  --tags Environment=staging Project=$PROJECT_NAME
-```
-
-#### Production Key Vault
-```bash
-az keyvault create \
-  --name "kv-${PROJECT_NAME}-prod" \
-  --resource-group "${RESOURCE_GROUP_PREFIX}-prod" \
-  --location "$LOCATION" \
-  --enabled-for-template-deployment true \
-  --enabled-for-disk-encryption true \
-  --enabled-for-deployment true \
-  --enable-rbac-authorization true \
-  --enable-purge-protection true \
-  --enable-soft-delete true \
-  --retention-days 90 \
-  --tags Environment=production Project=$PROJECT_NAME
-```
-
-### 2. Create Sample Secrets
-```bash
-# Function to create secrets
-create_secrets() {
-  local env=$1
-  local vault_name="kv-${PROJECT_NAME}-${env}"
-  
-  az keyvault secret set \
-    --vault-name "$vault_name" \
-    --name "database-password" \
-    --value "secure-db-password-${env}"
-  
-  az keyvault secret set \
-    --vault-name "$vault_name" \
-    --name "api-key" \
-    --value "secure-api-key-${env}"
-  
-  az keyvault secret set \
-    --vault-name "$vault_name" \
-    --name "jwt-secret" \
-    --value "secure-jwt-secret-${env}"
-}
-
-# Create secrets for all environments
-create_secrets "dev"
-create_secrets "staging"
-create_secrets "prod"
-```
 
 ## 🔑 Azure Active Directory Configuration
 
@@ -361,13 +287,7 @@ az role assignment create \
   --role "AcrPush" \
   --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/${RESOURCE_GROUP_PREFIX}-shared/providers/Microsoft.ContainerRegistry/registries/acr${PROJECT_NAME}shared"
 
-# Assign Key Vault roles
-for env in dev staging prod; do
-  az role assignment create \
-    --assignee $APP_ID \
-    --role "Key Vault Secrets User" \
-    --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/${RESOURCE_GROUP_PREFIX}-${env}/providers/Microsoft.KeyVault/vaults/kv-${PROJECT_NAME}-${env}"
-done
+
 ```
 
 ### 3. Create Managed Identities for Workload Identity
@@ -395,11 +315,7 @@ create_managed_identity() {
     --resource-group "$rg" \
     --query clientId --output tsv)
   
-  # Assign Key Vault role to managed identity
-  az role assignment create \
-    --assignee $client_id \
-    --role "Key Vault Secrets User" \
-    --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$rg/providers/Microsoft.KeyVault/vaults/kv-${PROJECT_NAME}-${env}"
+
   
   echo "Managed Identity for $env: $client_id"
 }
@@ -474,10 +390,7 @@ gh secret set AZURE_TENANT_ID --body "$TENANT_ID" --repo $GITHUB_REPO
 gh secret set AZURE_CLIENT_ID --body "$APP_ID" --repo $GITHUB_REPO
 gh secret set AZURE_SUBSCRIPTION_ID --body "$SUBSCRIPTION_ID" --repo $GITHUB_REPO
 
-# Set Key Vault names
-gh secret set KEYVAULT_NAME_DEV --body "kv-${PROJECT_NAME}-dev" --repo $GITHUB_REPO
-gh secret set KEYVAULT_NAME_STAGING --body "kv-${PROJECT_NAME}-staging" --repo $GITHUB_REPO
-gh secret set KEYVAULT_NAME_PROD --body "kv-${PROJECT_NAME}-prod" --repo $GITHUB_REPO
+
 
 # Verify secrets
 gh secret list --repo $GITHUB_REPO
@@ -531,15 +444,7 @@ create_nsg_rules "prod"
 
 ### 2. Configure Private Endpoints (Production)
 ```bash
-# Create private endpoint for Key Vault (production only)
-az network private-endpoint create \
-  --name "pe-kv-${PROJECT_NAME}-prod" \
-  --resource-group "${RESOURCE_GROUP_PREFIX}-prod" \
-  --vnet-name "vnet-aks-prod" \
-  --subnet "subnet-private-endpoints" \
-  --private-connection-resource-id "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/${RESOURCE_GROUP_PREFIX}-prod/providers/Microsoft.KeyVault/vaults/kv-${PROJECT_NAME}-prod" \
-  --group-id vault \
-  --connection-name "conn-kv-prod"
+
 ```
 
 ## 📊 Monitoring & Logging
@@ -631,8 +536,7 @@ test_aks_cluster() {
   # Check system pods
   kubectl get pods -n kube-system
   
-  # Test Key Vault CSI driver
-  kubectl get pods -n kube-system -l app=secrets-store-csi-driver
+
 }
 
 # Test all clusters
@@ -655,29 +559,7 @@ docker push "$ACR_LOGIN_SERVER/test/hello-world:latest"
 az acr repository list --name "acr${PROJECT_NAME}shared" --output table
 ```
 
-### 3. Test Key Vault Access
-```bash
-# Function to test Key Vault access
-test_keyvault() {
-  local env=$1
-  local vault_name="kv-${PROJECT_NAME}-${env}"
-  
-  echo "Testing Key Vault: $vault_name"
-  
-  # List secrets (should work with proper permissions)
-  az keyvault secret list --vault-name "$vault_name" --output table
-  
-  # Test secret retrieval
-  az keyvault secret show --vault-name "$vault_name" --name "database-password" --query value --output tsv
-}
-
-# Test all Key Vaults
-test_keyvault "dev"
-test_keyvault "staging"
-test_keyvault "prod"
-```
-
-### 4. Test GitHub OIDC Authentication
+### 3. Test GitHub OIDC Authentication
 ```bash
 # Create a test workflow file to verify OIDC
 cat > .github/workflows/test-azure-auth.yml << 'EOF'
@@ -790,7 +672,7 @@ After completing this setup, you will have:
 
 - ✅ **3 AKS clusters** (dev, staging, production)
 - ✅ **1 Azure Container Registry** (shared)
-- ✅ **3 Key Vaults** (environment-specific)
+
 - ✅ **GitHub OIDC integration** configured
 - ✅ **Monitoring and logging** enabled
 - ✅ **Network security** configured
@@ -810,11 +692,7 @@ echo "AZURE_TENANT_ID: $TENANT_ID"
 echo "AZURE_CLIENT_ID: $APP_ID"
 echo "AZURE_SUBSCRIPTION_ID: $SUBSCRIPTION_ID"
 echo ""
-echo "Key Vault Names:"
-echo "- Development: kv-${PROJECT_NAME}-dev"
-echo "- Staging: kv-${PROJECT_NAME}-staging"
-echo "- Production: kv-${PROJECT_NAME}-prod"
-echo ""
+
 echo "AKS Cluster Names:"
 echo "- Development: aks-${PROJECT_NAME}-dev"
 echo "- Staging: aks-${PROJECT_NAME}-staging" 

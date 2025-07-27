@@ -445,7 +445,7 @@ print_summary() {
     echo ""
     echo -e "${YELLOW}Next Steps:${NC}"
     echo "1. 🔐 Configure repository secrets for each service repository"
-    echo "2. 🛠️ Set up Azure infrastructure (AKS, ACR, Key Vault)"
+    echo "2. 🛠️ Set up Azure infrastructure (AKS, ACR)"
     echo "3. 🚀 Test deployments for each service independently"
     echo "4. 👥 Set up team access permissions for each repository"
     echo "5. 📊 Configure monitoring and alerting"

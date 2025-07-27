@@ -132,7 +132,7 @@ gh workflow run deploy-monitoring.yml -f environment=dev
 ### **Azure Resources**
 - **Azure Kubernetes Service (AKS)** - Container orchestration
 - **Azure Container Registry (ACR)** - Docker image storage
-- **Azure Key Vault** - Secrets management
+
 - **Azure Application Gateway** - Ingress and load balancing
 
 ### **Kubernetes Components**
@@ -164,7 +164,7 @@ gh workflow run deploy-monitoring.yml -f environment=dev
 ## 🔐 **Security & Compliance**
 
 ### **Security Features**
-- **🔒 Azure Key Vault Integration** - Centralized secrets management
+
 - **🛡️ RBAC and Identity Management** - Azure AD integration
 - **🔍 Security Scanning** - Automated vulnerability detection
 - **🌐 Network Security** - Private networking and ingress controls
@@ -190,8 +190,7 @@ gh workflow run deploy.yml -f environment=dev
 
 ### **2. Set Up Infrastructure**
 ```bash
-# Follow Azure setup guide
-./scripts/azure-keyvault-setup.sh
+# Check Azure identity and permissions
 ./scripts/azure-identity-check.sh
 
 # Deploy monitoring stack

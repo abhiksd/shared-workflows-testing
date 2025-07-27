@@ -150,11 +150,7 @@ app:
     max-request-size: 50MB
     temp-dir: ${TEMP_DIR:/tmp/uploads}
 
-# Azure Key Vault (if used)
-azure:
-  keyvault:
-    enabled: ${AZURE_KEYVAULT_ENABLED:false}
-    uri: ${AZURE_KEYVAULT_URI:}
+
     
 # Development Features
 debug:

@@ -1,13 +1,13 @@
-# Java Backend 2 - Product Catalog Service Deployment
+# Node.js Backend 1 - Notification Service Deployment
 
-This document describes how to deploy the Product Catalog Service using the integrated GitHub Actions workflow.
+This document describes how to deploy the Notification Service using the integrated GitHub Actions workflow.
 
 ## 🏗️ **Service Overview**
 
-**Java Backend 2** is a Spring Boot application that handles:
-- Product catalog management
-- Inventory tracking and management
-- Pricing information and updates
+**Java Backend 1** is a Express.js application that handles:
+- Email notifications
+- Push notifications
+- Real-time messaging
 
 ## 🚀 **Deployment Methods**
 
@@ -25,7 +25,7 @@ on:
       - 'release/**'  # Release candidate deployments
       - 'feature/**'  # Feature branch deployments
     paths:
-      - 'apps/java-backend2/**'        # Source code changes
+      - 'apps/nodejs-backend1/**'        # Source code changes
       - 'helm/**'        # Helm chart changes
       - '.github/workflows/deploy.yml' # Workflow changes
 ```
@@ -41,7 +41,7 @@ gh workflow run deploy.yml -f environment=staging
 gh workflow run deploy.yml -f environment=production
 
 # Or through GitHub UI:
-# Actions → Deploy Java Backend 2 - Product Catalog Service → Run workflow
+# Actions → Deploy Node.js Backend 1 - Notification Service → Run workflow
 ```
 
 **Manual deployment options:**
@@ -63,10 +63,10 @@ jobs:
   deploy:
     uses: ./.github/workflows/shared-deploy.yml
     with:
-      application_name: java-backend2
-      application_type: java-springboot
-      build_context: apps/java-backend2
-      dockerfile_path: apps/java-backend2/Dockerfile
+      application_name: nodejs-backend1
+      application_type: nodejs
+      build_context: apps/nodejs-backend1
+      dockerfile_path: apps/nodejs-backend1/Dockerfile
       helm_chart_path: helm
 ```
 
@@ -74,19 +74,19 @@ jobs:
 
 ### Development Environment
 - **Branch**: `develop`, `feature/**`
-- **URL**: `https://dev.mydomain.com/backend2`
+- **URL**: `https://dev.mydomain.com/backend1`
 - **Namespace**: `dev`
 - **Auto-deploy**: ✅ On push
 
 ### Staging Environment
 - **Branch**: `release/**`
-- **URL**: `https://staging.mydomain.com/backend2`
+- **URL**: `https://staging.mydomain.com/backend1`
 - **Namespace**: `staging`
 - **Auto-deploy**: ✅ On push
 
 ### Production Environment
 - **Branch**: `main`
-- **URL**: `https://production.mydomain.com/backend2`
+- **URL**: `https://production.mydomain.com/backend1`
 - **Namespace**: `production`
 - **Auto-deploy**: ✅ On push
 
@@ -95,46 +95,46 @@ jobs:
 ### Health Endpoints
 ```bash
 # Application health
-curl https://dev.mydomain.com/backend2/actuator/health
+curl https://dev.mydomain.com/backend1/health
 
 # Application status
-curl https://dev.mydomain.com/backend2/api/status
+curl https://dev.mydomain.com/backend1/api/status
 
 # Metrics (Prometheus)
-curl https://dev.mydomain.com/backend2/actuator/prometheus
+curl https://dev.mydomain.com/backend1/metrics
 ```
 
 ### Kubernetes Resources
 ```bash
 # Check deployment status
-kubectl get deployment java-backend2-dev -n dev
+kubectl get deployment nodejs-backend1-dev -n dev
 
 # Check pod logs
-kubectl logs -f deployment/java-backend2-dev -n dev
+kubectl logs -f deployment/nodejs-backend1-dev -n dev
 
 # Check service status
-kubectl get service java-backend2-dev -n dev
+kubectl get service nodejs-backend1-dev -n dev
 ```
 
 ## 🎯 **Service Endpoints**
 
-### Product Catalog API
+### Notification API
 ```bash
-# Get products
-curl https://dev.mydomain.com/backend2/api/products
+# Get notifications
+curl https://dev.mydomain.com/backend1/api/users
 
 # Health check
-curl https://dev.mydomain.com/backend2/actuator/health
+curl https://dev.mydomain.com/backend1/health
 
 # Service status
-curl https://dev.mydomain.com/backend2/api/status
+curl https://dev.mydomain.com/backend1/api/status
 ```
 
 ## 🔐 **Authentication & Secrets**
 
 The deployment workflow requires these secrets:
 - `ACR_LOGIN_SERVER` - Azure Container Registry
-- `KEYVAULT_NAME` - Azure Key Vault for secrets
+
 - `AZURE_TENANT_ID` - Azure tenant
 - `AZURE_CLIENT_ID` - Azure service principal
 - `AZURE_SUBSCRIPTION_ID` - Azure subscription
@@ -159,11 +159,11 @@ If deployment fails or issues are detected:
 
 ```bash
 # Quick rollback using Helm
-helm rollback java-backend2-production --namespace production
+helm rollback nodejs-backend1-production --namespace production
 
 # Or use the centralized rollback workflow
 gh workflow run rollback-deployment.yml \
-  -f application_name=java-backend2 \
+  -f application_name=nodejs-backend1 \
   -f environment=production \
   -f revision=previous
 ```
@@ -181,10 +181,10 @@ gh workflow run rollback-deployment.yml \
 2. **Deployment Issues**
    ```bash
    # Check Helm release status
-   helm status java-backend2-dev -n dev
+   helm status nodejs-backend1-dev -n dev
    
    # Check pod events
-   kubectl describe pod -l app=java-backend2 -n dev
+   kubectl describe pod -l app=nodejs-backend1 -n dev
    ```
 
 3. **Service Unavailable**
@@ -193,7 +193,7 @@ gh workflow run rollback-deployment.yml \
    kubectl get ingress -n dev
    
    # Verify service endpoints
-   kubectl get endpoints java-backend2-dev -n dev
+   kubectl get endpoints nodejs-backend1-dev -n dev
    ```
 
 ## 📞 **Support**
@@ -202,12 +202,12 @@ For deployment issues:
 1. Check GitHub Actions logs
 2. Review Kubernetes pod logs
 3. Check Azure Container Registry access
-4. Verify Azure Key Vault permissions
+4. Verify Azure permissions and access
 5. Contact DevOps team if issues persist
 
 ---
 
-**🏗️ Service**: Product Catalog Service  
-**🔗 Repository**: `/apps/java-backend2/`  
+**🏗️ Service**: Notification Service  
+**🔗 Repository**: `/apps/nodejs-backend1/`  
 **📊 Monitoring**: Prometheus + Grafana  
 **🚀 Deployment**: GitHub Actions + Helm

@@ -134,7 +134,7 @@ curl https://dev.mydomain.com/backend1/api/status
 
 The deployment workflow requires these secrets:
 - `ACR_LOGIN_SERVER` - Azure Container Registry
-- `KEYVAULT_NAME` - Azure Key Vault for secrets
+
 - `AZURE_TENANT_ID` - Azure tenant
 - `AZURE_CLIENT_ID` - Azure service principal
 - `AZURE_SUBSCRIPTION_ID` - Azure subscription
@@ -202,7 +202,7 @@ For deployment issues:
 1. Check GitHub Actions logs
 2. Review Kubernetes pod logs
 3. Check Azure Container Registry access
-4. Verify Azure Key Vault permissions
+4. Verify Azure permissions and access
 5. Contact DevOps team if issues persist
 
 ---
