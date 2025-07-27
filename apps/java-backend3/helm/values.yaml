@@ -59,7 +59,7 @@ ingress:
   proxyBodySize: "1024m"
   hosts:
     - host: dev.mydomain.com
-    - host: staging.mydomain.com
+    - host: sqe.mydomain.com
     - host: production.mydomain.com
 
 # Resource limits and requests

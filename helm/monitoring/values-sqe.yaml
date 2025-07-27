@@ -1,15 +1,15 @@
 # Staging Environment Values for AKS Monitoring
 
 global:
-  environment: staging
-  clusterName: "aks-staging-cluster"
+  environment: sqe
+  clusterName: "aks-sqe-cluster"
   region: "eastus"
 
 # Production-like configuration with smaller scale
 kube-prometheus-stack:
   prometheus:
     prometheusSpec:
-      # Medium storage for staging
+      # Medium storage for sqe
       storageSpec:
         volumeClaimTemplate:
           spec:
@@ -18,7 +18,7 @@ kube-prometheus-stack:
               requests:
                 storage: 40Gi
       
-      # Medium retention for staging
+      # Medium retention for sqe
       retention: 15d
       retentionSize: 35GB
       
@@ -65,7 +65,7 @@ grafana:
       memory: 384Mi
       cpu: 150m
   
-  # Internal load balancer for staging
+  # Internal load balancer for sqe
   service:
     type: LoadBalancer
     annotations:
@@ -78,7 +78,7 @@ loki-stack:
       size: 40Gi
       storageClassName: managed-csi-premium
 
-# Production-like alerting for staging
+# Production-like alerting for sqe
 alerting:
   critical:
     applicationDown:

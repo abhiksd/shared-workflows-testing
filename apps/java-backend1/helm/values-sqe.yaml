@@ -1,21 +1,21 @@
-# Staging environment values for java-backend2
+# Staging environment values for java-backend1
 global:
-  environment: staging
-  applicationName: java-backend2
+  environment: sqe
+  applicationName: java-backend1
   applicationType: java-springboot
 
 replicaCount: 2
 
 image:
-  repository: myregistry.azurecr.io/java-backend2
-  tag: "staging-latest"
+  repository: myregistry.azurecr.io/java-backend1
+  tag: "sqe-latest"
 
 ingress:
   enabled: true
-  pathPrefix: "backend2"
+  pathPrefix: "backend1"
   proxyBodySize: "1024m"
   hosts:
-    - host: staging.mydomain.com
+    - host: sqe.mydomain.com
 
 resources:
   limits:
@@ -27,13 +27,13 @@ resources:
 
 env:
   - name: ENVIRONMENT
-    value: "staging"
+    value: "sqe"
   - name: APPLICATION_NAME
-    value: "java-backend2"
+    value: "java-backend1"
   - name: SERVER_PORT
     value: "8080"
   - name: SPRING_PROFILES_ACTIVE
-    value: "staging"
+    value: "sqe"
   - name: LOG_LEVEL
     value: "INFO"
 

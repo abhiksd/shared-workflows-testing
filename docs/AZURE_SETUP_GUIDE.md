@@ -76,9 +76,9 @@ az group create \
 
 # Staging Environment  
 az group create \
-  --name "${RESOURCE_GROUP_PREFIX}-staging" \
+  --name "${RESOURCE_GROUP_PREFIX}-sqe" \
   --location "$LOCATION" \
-  --tags Environment=staging Project=$PROJECT_NAME
+  --tags Environment=sqe Project=$PROJECT_NAME
 
 # Production Environment
 az group create \
@@ -120,8 +120,8 @@ az aks create \
 #### Staging Cluster
 ```bash
 az aks create \
-  --resource-group "${RESOURCE_GROUP_PREFIX}-staging" \
-  --name "aks-${PROJECT_NAME}-staging" \
+  --resource-group "${RESOURCE_GROUP_PREFIX}-sqe" \
+  --name "aks-${PROJECT_NAME}-sqe" \
   --node-count 3 \
   --node-vm-size Standard_D4s_v3 \
   --enable-addons monitoring \
@@ -137,7 +137,7 @@ az aks create \
   --load-balancer-sku standard \
   --vm-set-type VirtualMachineScaleSets \
   --kubernetes-version 1.28.3 \
-  --tags Environment=staging Project=$PROJECT_NAME
+  --tags Environment=sqe Project=$PROJECT_NAME
 ```
 
 #### Production Cluster
@@ -174,9 +174,9 @@ az aks get-credentials \
 
 # Staging
 az aks get-credentials \
-  --resource-group "${RESOURCE_GROUP_PREFIX}-staging" \
-  --name "aks-${PROJECT_NAME}-staging" \
-  --context "aks-${PROJECT_NAME}-staging"
+  --resource-group "${RESOURCE_GROUP_PREFIX}-sqe" \
+  --name "aks-${PROJECT_NAME}-sqe" \
+  --context "aks-${PROJECT_NAME}-sqe"
 
 # Production
 az aks get-credentials \
@@ -219,8 +219,8 @@ az aks update \
 
 # Staging
 az aks update \
-  --resource-group "${RESOURCE_GROUP_PREFIX}-staging" \
-  --name "aks-${PROJECT_NAME}-staging" \
+  --resource-group "${RESOURCE_GROUP_PREFIX}-sqe" \
+  --name "aks-${PROJECT_NAME}-sqe" \
   --attach-acr "acr${PROJECT_NAME}shared"
 
 # Production
@@ -274,7 +274,7 @@ echo "Service Principal Object ID: $SP_OBJECT_ID"
 ### 2. Assign Azure Roles
 ```bash
 # Assign Contributor role for resource groups
-for env in dev staging prod shared; do
+for env in dev sqe prod shared; do
   az role assignment create \
     --assignee $APP_ID \
     --role "Contributor" \
@@ -322,7 +322,7 @@ create_managed_identity() {
 
 # Create managed identities for all environments
 create_managed_identity "dev"
-create_managed_identity "staging"
+create_managed_identity "sqe"
 create_managed_identity "prod"
 ```
 
@@ -334,7 +334,7 @@ create_managed_identity "prod"
 REPO_OWNER=$(echo $GITHUB_REPO | cut -d'/' -f1)
 REPO_NAME=$(echo $GITHUB_REPO | cut -d'/' -f2)
 
-# Create federated credential for main branch (staging)
+# Create federated credential for main branch (sqe)
 az ad app federated-credential create \
   --id $APP_ID \
   --parameters '{
@@ -422,7 +422,7 @@ create_nsg_rules() {
     --protocol Tcp \
     --destination-port-ranges 443
   
-  # Allow inbound HTTP (staging/dev only)
+  # Allow inbound HTTP (sqe/dev only)
   if [[ "$env" != "prod" ]]; then
     az network nsg rule create \
       --name "AllowHTTP" \
@@ -438,7 +438,7 @@ create_nsg_rules() {
 
 # Create NSG rules for all environments
 create_nsg_rules "dev"
-create_nsg_rules "staging"
+create_nsg_rules "sqe"
 create_nsg_rules "prod"
 ```
 
@@ -466,7 +466,7 @@ create_log_analytics() {
 
 # Create workspaces for all environments
 create_log_analytics "dev"
-create_log_analytics "staging"
+create_log_analytics "sqe"
 create_log_analytics "prod"
 ```
 
@@ -487,7 +487,7 @@ create_app_insights() {
 
 # Create Application Insights for all environments
 create_app_insights "dev"
-create_app_insights "staging"
+create_app_insights "sqe"
 create_app_insights "prod"
 ```
 
@@ -508,7 +508,7 @@ enable_container_insights() {
 
 # Enable for all environments
 enable_container_insights "dev"
-enable_container_insights "staging"
+enable_container_insights "sqe"
 enable_container_insights "prod"
 ```
 
@@ -541,7 +541,7 @@ test_aks_cluster() {
 
 # Test all clusters
 test_aks_cluster "dev"
-test_aks_cluster "staging"
+test_aks_cluster "sqe"
 test_aks_cluster "prod"
 ```
 
@@ -625,7 +625,7 @@ install_addons() {
 
 # Install add-ons for all environments
 install_addons "dev"
-install_addons "staging"
+install_addons "sqe"
 install_addons "prod"
 ```
 
@@ -661,7 +661,7 @@ configure_workload_identity() {
 
 # Configure workload identity for all environments
 configure_workload_identity "dev"
-configure_workload_identity "staging"
+configure_workload_identity "sqe"
 configure_workload_identity "prod"
 ```
 
@@ -670,7 +670,7 @@ configure_workload_identity "prod"
 ### Infrastructure Summary
 After completing this setup, you will have:
 
-- ✅ **3 AKS clusters** (dev, staging, production)
+- ✅ **3 AKS clusters** (dev, sqe, production)
 - ✅ **1 Azure Container Registry** (shared)
 
 - ✅ **GitHub OIDC integration** configured
@@ -695,7 +695,7 @@ echo ""
 
 echo "AKS Cluster Names:"
 echo "- Development: aks-${PROJECT_NAME}-dev"
-echo "- Staging: aks-${PROJECT_NAME}-staging" 
+echo "- Staging: aks-${PROJECT_NAME}-sqe" 
 echo "- Production: aks-${PROJECT_NAME}-prod"
 ```
 
@@ -713,7 +713,7 @@ echo "- Production: aks-${PROJECT_NAME}-prod"
 # Uncomment only if you need to clean up everything
 
 # az group delete --name "${RESOURCE_GROUP_PREFIX}-dev" --yes --no-wait
-# az group delete --name "${RESOURCE_GROUP_PREFIX}-staging" --yes --no-wait
+# az group delete --name "${RESOURCE_GROUP_PREFIX}-sqe" --yes --no-wait
 # az group delete --name "${RESOURCE_GROUP_PREFIX}-prod" --yes --no-wait
 # az group delete --name "${RESOURCE_GROUP_PREFIX}-shared" --yes --no-wait
 # az ad app delete --id $APP_ID

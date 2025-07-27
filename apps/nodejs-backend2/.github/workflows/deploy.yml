@@ -30,7 +30,7 @@ on:
         type: choice
         options:
           - dev
-          - staging
+          - sqe
           - production
       force_deploy:
         description: 'Force deployment even if no changes'

@@ -565,8 +565,8 @@ runs:
             echo "   - Quick iteration and testing enabled"
             echo "   - Auto-scaling and monitoring configured"
             ;;
-          "staging")
-            echo "🎭 Staging deployment completed successfully!"
+                        "sqe")
+                echo "🎭 SQE deployment completed successfully!"
             echo "   - Pre-production validation environment ready"
             echo "   - Enhanced monitoring and alerting active"
             ;;

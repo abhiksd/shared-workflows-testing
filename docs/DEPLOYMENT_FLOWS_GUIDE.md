@@ -127,7 +127,7 @@ flowchart TD
     G -->|develop branch allowed for dev| H[SHOULD_DEPLOY = true]
     
     H --> I[setup job]
-    I --> J[Same build and security pipeline as staging]
+    I --> J[Same build and security pipeline as sqe]
     J --> K[deploy job]
     K --> L[Deploy to AKS Dev cluster]
     L --> M[health-check job]
@@ -140,7 +140,7 @@ flowchart TD
 **Key Points:**
 - **Trigger**: Push to `develop` branch (`N630-6258_Helm_deploy`)
 - **Target**: Dev environment
-- **Pipeline**: Same security gates as staging
+- **Pipeline**: Same security gates as sqe
 - **Cluster**: AKS Dev cluster
 
 ---
@@ -198,7 +198,7 @@ flowchart TD
     B --> C{Environment choice}
     
     C -->|dev| D[Caller: environment = 'dev']
-    C -->|staging| E[Caller: environment = 'staging']  
+    C -->|sqe| E[Caller: environment = 'sqe']  
     C -->|production| F[Caller: environment = 'production']
     
     D --> G[Shared: shared-deploy.yml called]
@@ -213,7 +213,7 @@ flowchart TD
     K --> L{Environment type}
     
     L -->|production| M[Include create_release job]
-    L -->|dev/staging| N[Skip release creation]
+    L -->|dev/sqe| N[Skip release creation]
     
     M --> O[✅ Manual deployment SUCCESS + Release]
     N --> P[✅ Manual deployment SUCCESS]
@@ -465,7 +465,7 @@ flowchart TD
     F --> G{Event Type & Branch}
     
     G -->|Push to develop| H[should_deploy_dev = true]
-    G -->|Push to main| I[should_deploy_staging = true]
+    G -->|Push to main| I[should_deploy_sqe = true]
     G -->|Push to release/*| J[should_deploy_production = true]
     G -->|Manual dispatch: 'all'| K[Deploy to ALL environments]
     G -->|Manual dispatch: specific env| L[Deploy to selected environment]
@@ -520,7 +520,7 @@ flowchart TD
 # Manual deployment options
 Environment Options:
 - dev: Deploy only to dev environment
-- staging: Deploy only to staging environment  
+- sqe: Deploy only to sqe environment  
 - production: Deploy only to production environment
 - all: Deploy to ALL environments simultaneously
 
@@ -578,9 +578,9 @@ sequenceDiagram
     Dev->>Shared: Push changes to helm/monitoring/values.yaml
     Shared->>Monitor: Triggers monitoring-deploy.yml
     Monitor->>Monitor: detect-changes: monitoring_changed=true
-    Monitor->>Monitor: strategy: should_deploy_staging=true
+    Monitor->>Monitor: strategy: should_deploy_sqe=true
     Monitor->>Deploy: Calls deploy-monitoring.yml
-    Deploy->>AKS: Deploy monitoring stack to staging
+    Deploy->>AKS: Deploy monitoring stack to sqe
     Deploy->>Monitor: Returns success
     Monitor->>Monitor: deployment-summary: ✅ SUCCESS
 ```
@@ -599,7 +599,7 @@ sequenceDiagram
     App->>Shared: Calls shared-deploy.yml
     Deploy->>Deploy: validate-environment
     Deploy->>Deploy: maven-build, security scans
-    Deploy->>AKS: Deploy java-backend1 to staging
+    Deploy->>AKS: Deploy java-backend1 to sqe
     Deploy->>App: Returns success
     
     Note over Deploy,AKS: ❌ NO monitoring deployment triggered
@@ -651,7 +651,7 @@ uses: shared-org/shared-workflows-repo/.github/workflows/shared-deploy.yml@main
 
 | Event Type | Branch/Pattern | Workflow Triggered | Target Environment | Security Scans | Release Created |
 |------------|----------------|-------------------|-------------------|----------------|-----------------|
-| **Push** | `main` | `deploy.yml` | SQE (staging) | ✅ Both | ❌ No |
+| **Push** | `main` | `deploy.yml` | SQE (sqe) | ✅ Both | ❌ No |
 | **Push** | `develop` | `deploy.yml` | Dev | ✅ Both | ❌ No |
 | **Push** | `release/*` | `deploy.yml` | Production | ✅ Both | ✅ Yes |
 | **Push** | `feature/*` | ❌ None | ❌ None | ❌ None | ❌ No |
@@ -720,7 +720,7 @@ flowchart LR
 
 ```yaml
 # Caller → Shared Workflow
-environment: 'auto' | 'dev' | 'staging' | 'production'
+environment: 'auto' | 'dev' | 'sqe' | 'production'
 application_name: string
 application_type: 'java-springboot' | 'nodejs'
 build_context: path
@@ -816,7 +816,7 @@ flowchart TD
 | Issue | Symptoms | Root Cause | Solution |
 |-------|----------|------------|----------|
 | **Monitoring workflow doesn't trigger** | No deployment despite changes | Files not in monitored paths | Ensure changes are in `helm/monitoring/**` or `monitoring/**` |
-| **Monitoring deploys to wrong environment** | Dev config in production | Branch detection logic | Check if pushing to correct branch (develop→dev, main→staging) |
+| **Monitoring deploys to wrong environment** | Dev config in production | Branch detection logic | Check if pushing to correct branch (develop→dev, main→sqe) |
 | **Multiple monitoring deployments** | Race conditions, conflicts | Old shared-deploy.yml still has monitoring | Verify `deploy-monitoring` removed from shared-deploy.yml |
 | **Manual monitoring deployment fails** | workflow_dispatch doesn't work | Incorrect parameters | Check environment selection and force_deploy settings |
 | **No monitoring changes detected** | Workflow skips deployment | Change detection false negative | Use manual dispatch with `force_deploy: true` |
@@ -842,7 +842,7 @@ gh run list --workflow=deploy-monitoring.yml
 git diff --name-only HEAD~1 HEAD | grep -E "^helm/monitoring/|^monitoring/|^\.github/workflows/.*monitoring.*\.yml$"
 
 # Manual monitoring deployment
-gh workflow run monitoring-deploy.yml -f environment=staging -f force_deploy=true
+gh workflow run monitoring-deploy.yml -f environment=sqe -f force_deploy=true
 
 # Check monitoring deployment logs
 gh run view --workflow=monitoring-deploy.yml
@@ -856,7 +856,7 @@ gh run view --workflow=monitoring-deploy.yml
 
 1. **Branch Strategy**:
    - `feature/*` → Create PR for security scans only
-   - `main` → Auto-deploys to staging
+   - `main` → Auto-deploys to sqe
    - `release/*` → Auto-deploys to production
 
 2. **Security Requirements**:

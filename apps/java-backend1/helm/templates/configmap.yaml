@@ -34,7 +34,7 @@ data:
   {{- if eq .Values.global.environment "production" }}
   logging.level.root: "WARN"
   logging.level.org.springframework: "WARN"
-  {{- else if eq .Values.global.environment "staging" }}
+  {{- else if eq .Values.global.environment "sqe" }}
   logging.level.root: "INFO"
   logging.level.org.springframework: "INFO"
   {{- else }}
@@ -82,7 +82,7 @@ data:
         {{- if eq .Values.global.environment "production" }}
         root: WARN
         org.springframework: WARN
-        {{- else if eq .Values.global.environment "staging" }}
+        {{- else if eq .Values.global.environment "sqe" }}
         root: INFO
         org.springframework: INFO
         {{- else }}

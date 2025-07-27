@@ -94,7 +94,7 @@ gh workflow run deploy-monitoring.yml -f environment=dev
 
 #### **shared-deploy.yml** - Universal Deployment
 - ✅ Supports Java Spring Boot and Node.js applications
-- ✅ Multi-environment deployment (dev, staging, production)
+- ✅ Multi-environment deployment (dev, sqe, production)
 - ✅ Azure Container Registry and AKS integration
 - ✅ Helm chart deployment with environment-specific values
 - ✅ Comprehensive health checks and rollback support

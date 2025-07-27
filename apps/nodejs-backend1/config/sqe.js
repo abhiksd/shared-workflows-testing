@@ -1,14 +1,14 @@
 /**
  * Staging Environment Configuration for Node.js Application
- * Production-like configuration for AKS staging cluster with performance optimizations
+ * Production-like configuration for AKS sqe cluster with performance optimizations
  */
 
 module.exports = {
   app: {
-    environment: 'staging'
+    environment: 'sqe'
   },
 
-  // Server configuration for staging environment
+  // Server configuration for sqe environment
   server: {
     port: process.env.PORT || 3000,
     host: '0.0.0.0',
@@ -17,13 +17,13 @@ module.exports = {
     headersTimeout: 60000
   },
 
-  // PostgreSQL Database for staging environment
+  // PostgreSQL Database for sqe environment
   database: {
     type: 'postgresql',
-    host: process.env.DB_HOST || 'postgres-staging.postgres.database.azure.com',
+    host: process.env.DB_HOST || 'postgres-sqe.postgres.database.azure.com',
     port: process.env.DB_PORT || 5432,
-    database: process.env.DB_NAME || 'nodejs_app_staging',
-    username: process.env.DB_USERNAME || 'nodejs_staging_user',
+    database: process.env.DB_NAME || 'nodejs_app_sqe',
+    username: process.env.DB_USERNAME || 'nodejs_sqe_user',
     password: process.env.DB_PASSWORD,
     ssl: process.env.DB_SSL === 'true' || true,
     synchronize: false,
@@ -51,9 +51,9 @@ module.exports = {
     }
   },
 
-  // Redis Cache for staging
+  // Redis Cache for sqe
   redis: {
-    host: process.env.REDIS_HOST || 'redis-staging.redis.cache.windows.net',
+    host: process.env.REDIS_HOST || 'redis-sqe.redis.cache.windows.net',
     port: process.env.REDIS_PORT || 6380,
     password: process.env.REDIS_PASSWORD,
     db: process.env.REDIS_DB || 0,
@@ -64,7 +64,7 @@ module.exports = {
     retryDelayOnFailover: 100,
     enableReadyCheck: true,
     maxRetriesPerRequest: 3,
-    keyPrefix: 'nodejs-app:staging:',
+    keyPrefix: 'nodejs-app:sqe:',
     cluster: {
       enableReadyCheck: true,
       redisOptions: {
@@ -73,13 +73,13 @@ module.exports = {
     }
   },
 
-  // Security configuration for staging
+  // Security configuration for sqe
   security: {
     cors: {
       origin: [
-        'https://*.staging.company.com',
-        'https://app-staging.company.com',
-        'https://admin-staging.company.com'
+        'https://*.sqe.company.com',
+        'https://app-sqe.company.com',
+        'https://admin-sqe.company.com'
       ],
       credentials: true,
       maxAge: 3600
@@ -91,7 +91,7 @@ module.exports = {
           styleSrc: ["'self'", "'unsafe-inline'"],
           scriptSrc: ["'self'"],
           imgSrc: ["'self'", "data:", "https:"],
-          connectSrc: ["'self'", "https://*.staging.company.com"]
+          connectSrc: ["'self'", "https://*.sqe.company.com"]
         }
       },
       hsts: {
@@ -107,23 +107,23 @@ module.exports = {
       legacyHeaders: false
     },
     jwt: {
-      issuer: process.env.JWT_ISSUER || 'nodejs-app-staging',
+      issuer: process.env.JWT_ISSUER || 'nodejs-app-sqe',
       expiresIn: '2h'
     }
   },
 
-  // OAuth2/OIDC configuration for staging
+  // OAuth2/OIDC configuration for sqe
   oauth2: {
     clientId: process.env.OAUTH2_CLIENT_ID,
     clientSecret: process.env.OAUTH2_CLIENT_SECRET,
     issuerUrl: process.env.OAUTH2_ISSUER_URL || `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}/v2.0`,
-    redirectUri: process.env.OAUTH2_REDIRECT_URI || 'https://app-staging.company.com/auth/callback',
+    redirectUri: process.env.OAUTH2_REDIRECT_URI || 'https://app-sqe.company.com/auth/callback',
     scope: 'openid profile email',
     responseType: 'code',
     grantType: 'authorization_code'
   },
 
-  // Logging configuration for staging
+  // Logging configuration for sqe
   logging: {
     level: 'info',
     format: 'json',
@@ -145,7 +145,7 @@ module.exports = {
     }
   },
 
-  // Caching configuration for staging
+  // Caching configuration for sqe
   cache: {
     enabled: true,
     defaultTTL: 600,
@@ -153,13 +153,13 @@ module.exports = {
     maxKeys: 5000,
     redis: {
       enabled: true,
-      keyPrefix: 'cache:staging:',
+      keyPrefix: 'cache:sqe:',
       ttl: 1800,
       compression: true
     }
   },
 
-  // Session configuration for staging
+  // Session configuration for sqe
   session: {
     secret: process.env.SESSION_SECRET,
     name: 'sessionId',
@@ -174,12 +174,12 @@ module.exports = {
     },
     store: {
       type: 'redis',
-      prefix: 'sess:staging:',
+      prefix: 'sess:sqe:',
       ttl: 7200 // 2 hours
     }
   },
 
-  // Monitoring configuration for staging
+  // Monitoring configuration for sqe
   monitoring: {
     enabled: true,
     metrics: {
@@ -187,7 +187,7 @@ module.exports = {
       endpoint: '/metrics',
       collectDefaultMetrics: true,
       httpMetrics: true,
-      prefix: 'nodejs_app_staging_'
+      prefix: 'nodejs_app_sqe_'
     },
     health: {
       enabled: true,
@@ -200,13 +200,13 @@ module.exports = {
     },
     tracing: {
       enabled: true,
-      serviceName: 'nodejs-app-staging',
+      serviceName: 'nodejs-app-sqe',
       jaegerEndpoint: process.env.JAEGER_ENDPOINT,
       samplingRate: 0.1 // 10% sampling
     }
   },
 
-  // External services configuration for staging
+  // External services configuration for sqe
   externalServices: {
     timeout: 25000,
     retries: 3,
@@ -219,7 +219,7 @@ module.exports = {
       halfOpenMaxCalls: 3
     },
     userService: {
-      url: process.env.USER_SERVICE_URL || 'https://user-service-staging.company.com',
+      url: process.env.USER_SERVICE_URL || 'https://user-service-sqe.company.com',
       timeout: 12000,
       apiKey: process.env.USER_SERVICE_API_KEY,
       circuitBreaker: {
@@ -228,7 +228,7 @@ module.exports = {
       }
     },
     notificationService: {
-      url: process.env.NOTIFICATION_SERVICE_URL || 'https://notification-service-staging.company.com',
+      url: process.env.NOTIFICATION_SERVICE_URL || 'https://notification-service-sqe.company.com',
       timeout: 8000,
       apiKey: process.env.NOTIFICATION_SERVICE_API_KEY,
       circuitBreaker: {
@@ -237,7 +237,7 @@ module.exports = {
       }
     },
     paymentService: {
-      url: process.env.PAYMENT_SERVICE_URL || 'https://payment-service-staging.company.com',
+      url: process.env.PAYMENT_SERVICE_URL || 'https://payment-service-sqe.company.com',
       timeout: 20000,
       apiKey: process.env.PAYMENT_SERVICE_API_KEY,
       circuitBreaker: {
@@ -259,7 +259,7 @@ module.exports = {
     enablePerformanceMonitoring: true
   },
 
-  // API configuration for staging
+  // API configuration for sqe
   api: {
     version: 'v1',
     basePath: '/api',
@@ -275,7 +275,7 @@ module.exports = {
     }
   },
 
-  // File upload configuration for staging
+  // File upload configuration for sqe
   upload: {
     maxSize: 20 * 1024 * 1024, // 20MB
     allowedTypes: [
@@ -309,17 +309,17 @@ module.exports = {
       services: [
         {
           name: 'user-service',
-          url: process.env.USER_SERVICE_URL || 'https://user-service-staging.company.com/health',
+          url: process.env.USER_SERVICE_URL || 'https://user-service-sqe.company.com/health',
           timeout: 3000
         },
         {
           name: 'notification-service',
-          url: process.env.NOTIFICATION_SERVICE_URL || 'https://notification-service-staging.company.com/health',
+          url: process.env.NOTIFICATION_SERVICE_URL || 'https://notification-service-sqe.company.com/health',
           timeout: 3000
         },
         {
           name: 'payment-service',
-          url: process.env.PAYMENT_SERVICE_URL || 'https://payment-service-staging.company.com/health',
+          url: process.env.PAYMENT_SERVICE_URL || 'https://payment-service-sqe.company.com/health',
           timeout: 5000
         }
       ]

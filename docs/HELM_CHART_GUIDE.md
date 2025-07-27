@@ -41,7 +41,7 @@ helm/java-app/
 ├── Chart.yaml                 # Chart metadata
 ├── values.yaml               # Default values
 ├── values-dev.yaml           # Development overrides
-├── values-staging.yaml       # Staging overrides
+├── values-sqe.yaml       # Staging overrides
 ├── values-production.yaml    # Production overrides
 └── templates/
     ├── _helpers.tpl          # Template helpers
@@ -85,7 +85,7 @@ annotations:
 ```yaml
 # Global values (applies to all charts)
 global:
-  environment: dev|staging|production
+  environment: dev|sqe|production
   applicationName: java-app
   applicationType: java-springboot
   registry: myregistry.azurecr.io
@@ -381,11 +381,11 @@ security:
     enabled: false
 ```
 
-### Staging Environment (values-staging.yaml)
+### Staging Environment (values-sqe.yaml)
 ```yaml
 # Production-like environment for testing
 global:
-  environment: staging
+  environment: sqe
 
 replicaCount: 2
 
@@ -402,7 +402,7 @@ resources:
 
 env:
   - name: SPRING_PROFILES_ACTIVE
-    value: "staging"
+    value: "sqe"
   - name: LOG_LEVEL
     value: "INFO"
 
@@ -715,7 +715,7 @@ security:
 2. **Keep sensitive data in Kubernetes secrets**
 3. **Use environment-specific resource sizing**
 4. **Configure appropriate health checks**
-5. **Enable monitoring in staging and production**
+5. **Enable monitoring in sqe and production**
 
 ### Security Best Practices
 ```yaml
@@ -819,7 +819,7 @@ helm uninstall java-app -n default --timeout=300s
 # Function to cleanup all environments
 cleanup_all_environments() {
   local app_name="java-app"
-  local environments=("default" "dev" "staging" "production")
+  local environments=("default" "dev" "sqe" "production")
   
   for env in "${environments[@]}"; do
     echo "🧹 Cleaning up $app_name in $env environment..."
@@ -1314,7 +1314,7 @@ main
 # cleanup-all-environments.sh - Cleanup across multiple environments
 
 APP_NAME="java-app"
-ENVIRONMENTS=("dev" "staging" "production")
+ENVIRONMENTS=("dev" "sqe" "production")
 
 for env in "${ENVIRONMENTS[@]}"; do
   echo "🧹 Cleaning up $APP_NAME in $env environment..."

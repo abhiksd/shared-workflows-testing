@@ -82,7 +82,7 @@ jobs:
 #### Step 1: Prepare Environment
 ```bash
 # Set environment variables
-export ENVIRONMENT="dev"  # or staging, production
+export ENVIRONMENT="dev"  # or sqe, production
 export AKS_CLUSTER_NAME="your-aks-cluster"
 export AKS_RESOURCE_GROUP="your-resource-group"
 export AZURE_SUBSCRIPTION_ID="your-subscription-id"
@@ -217,7 +217,7 @@ Access at: http://localhost:9093
 - Simplified alerting thresholds
 - Shorter data retention
 
-#### Staging Environment (`values-staging.yaml`)
+#### Staging Environment (`values-sqe.yaml`)
 - Medium resource allocation
 - Internal LoadBalancer
 - Production-like alerting

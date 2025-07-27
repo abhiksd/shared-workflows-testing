@@ -55,7 +55,7 @@ Comprehensive script for verifying Azure CLI configuration, identity, and permis
 Script for deploying monitoring stack to AKS clusters.
 
 #### Features
-- **Environment Support**: Deploy to dev/staging/production
+- **Environment Support**: Deploy to dev/sqe/production
 - **Helm Integration**: Uses Helm charts for deployment
 - **Configuration Management**: Environment-specific configurations
 

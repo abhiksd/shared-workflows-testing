@@ -92,7 +92,7 @@ runs:
           echo "Using production version: ${VERSION}"
           
         else
-          # Development/staging - use short SHA and environment
+          # Development/sqe - use short SHA and environment
           VERSION="${{ inputs.environment }}-${{ steps.sha.outputs.short_sha }}"
           IMAGE_TAG="${{ inputs.environment }}-${{ steps.sha.outputs.short_sha }}"
           HELM_VERSION="0.1.0-${{ inputs.environment }}-${{ steps.sha.outputs.short_sha }}"

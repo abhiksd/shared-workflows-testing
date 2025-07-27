@@ -7,7 +7,7 @@ on:
   workflow_call:
     inputs:
       environment:
-        description: 'Target environment (dev, staging, production)'
+        description: 'Target environment (dev, sqe, production)'
         required: true
         type: string
       application_name:
@@ -80,7 +80,7 @@ jobs:
             if [[ "$GITHUB_REF" == "refs/heads/develop" ]]; then
               TARGET_ENV="dev"
             elif [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
-              TARGET_ENV="staging"
+              TARGET_ENV="sqe"
             elif [[ "$GITHUB_REF" == refs/heads/release/* ]] || [[ "$GITHUB_REF" == refs/tags/* ]]; then
               TARGET_ENV="production"
             else
@@ -105,14 +105,14 @@ jobs:
                 echo "❌ Dev deployment blocked: must be develop branch or manual trigger"
               fi
               ;;
-            "staging")
+            "sqe")
               if [[ "$GITHUB_REF" == "refs/heads/main" ]] || [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
                 SHOULD_DEPLOY="true"
                 AKS_CLUSTER="${{ env.AKS_CLUSTER_NAME_SQE }}"
                 AKS_RG="${{ env.AKS_RESOURCE_GROUP_SQE }}"
-                echo "✅ Staging deployment approved: main branch or manual trigger"
+                echo "✅ SQE deployment approved: main branch or manual trigger"
               else
-                echo "❌ Staging deployment blocked: must be main branch or manual trigger"
+                echo "❌ SQE deployment blocked: must be main branch or manual trigger"
               fi
               ;;
             "production")

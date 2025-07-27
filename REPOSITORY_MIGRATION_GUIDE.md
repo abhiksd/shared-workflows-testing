@@ -72,7 +72,7 @@ This repository contains reusable GitHub Actions workflows for all microservices
 
 ### shared-deploy.yml
 - Handles Java Spring Boot and Node.js deployments
-- Supports multiple environments (dev, staging, production)
+- Supports multiple environments (dev, sqe, production)
 - Integrates with Azure Container Registry and AKS
 
 ### rollback-deployment.yml
@@ -265,7 +265,7 @@ on:
         type: choice
         options:
           - dev
-          - staging
+          - sqe
           - production
 
 jobs:

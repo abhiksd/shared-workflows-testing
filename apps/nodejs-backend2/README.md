@@ -75,7 +75,7 @@ The application uses environment-specific configuration files:
 - `config/default.js` - Base configuration
 - `config/local.js` - Local development
 - `config/development.js` - Development environment
-- `config/staging.js` - Staging environment  
+- `config/sqe.js` - Staging environment  
 - `config/production.js` - Production environment
 
 ### Key Configuration Options

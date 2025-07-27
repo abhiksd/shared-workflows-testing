@@ -14,7 +14,7 @@ on:
         type: choice
         options:
           - dev
-          - staging
+          - sqe
           - production
       application_name:
         description: 'Application name to rollback'
@@ -54,8 +54,8 @@ env:
   # Configure your AKS cluster names
   AKS_CLUSTER_NAME_DEV: "aks-platform-dev"
   AKS_RESOURCE_GROUP_DEV: "rg-platform-dev"
-  AKS_CLUSTER_NAME_STAGING: "aks-platform-staging"
-  AKS_RESOURCE_GROUP_STAGING: "rg-platform-staging"
+  AKS_CLUSTER_NAME_SQE: "aks-platform-sqe"
+  AKS_RESOURCE_GROUP_SQE: "rg-platform-sqe"
   AKS_CLUSTER_NAME_PROD: "aks-platform-prod"
   AKS_RESOURCE_GROUP_PROD: "rg-platform-prod"
 

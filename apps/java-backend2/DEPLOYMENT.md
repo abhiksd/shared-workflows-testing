@@ -37,7 +37,7 @@ Trigger manual deployments through GitHub Actions:
 ```bash
 # Using GitHub CLI
 gh workflow run deploy.yml -f environment=dev
-gh workflow run deploy.yml -f environment=staging
+gh workflow run deploy.yml -f environment=sqe
 gh workflow run deploy.yml -f environment=production
 
 # Or through GitHub UI:
@@ -45,7 +45,7 @@ gh workflow run deploy.yml -f environment=production
 ```
 
 **Manual deployment options:**
-- **Environment**: `dev`, `staging`, or `production`
+- **Environment**: `dev`, `sqe`, or `production`
 - **Force Deploy**: Deploy even if no changes detected
 
 ### 3. **Pull Request Validation**
@@ -80,8 +80,8 @@ jobs:
 
 ### Staging Environment
 - **Branch**: `release/**`
-- **URL**: `https://staging.mydomain.com/backend1`
-- **Namespace**: `staging`
+- **URL**: `https://sqe.mydomain.com/backend1`
+- **Namespace**: `sqe`
 - **Auto-deploy**: ✅ On push
 
 ### Production Environment

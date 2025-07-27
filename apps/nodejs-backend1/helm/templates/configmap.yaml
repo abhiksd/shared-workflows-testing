@@ -22,7 +22,7 @@ data:
   # Logging Configuration
   {{- if eq .Values.global.environment "production" }}
   LOG_LEVEL: "warn"
-  {{- else if eq .Values.global.environment "staging" }}
+  {{- else if eq .Values.global.environment "sqe" }}
   LOG_LEVEL: "info"
   {{- else }}
   LOG_LEVEL: "debug"
@@ -33,7 +33,7 @@ data:
   # Performance Configuration
   {{- if eq .Values.global.environment "production" }}
   NODE_OPTIONS: "--max-old-space-size=2048 --optimize-for-size"
-  {{- else if eq .Values.global.environment "staging" }}
+  {{- else if eq .Values.global.environment "sqe" }}
   NODE_OPTIONS: "--max-old-space-size=1024"
   {{- else }}
   NODE_OPTIONS: "--max-old-space-size=512 --inspect=0.0.0.0:9229"
@@ -59,7 +59,7 @@ data:
         "format": "json",
         "enableConsole": true,
         "enableFile": false
-        {{- else if eq .Values.global.environment "staging" }}
+        {{- else if eq .Values.global.environment "sqe" }}
         "level": "info",
         "format": "json",
         "enableConsole": true,
@@ -81,7 +81,7 @@ data:
         "metricsEnabled": true,
         "healthCheckEnabled": true,
         "performanceMonitoring": true
-        {{- else if eq .Values.global.environment "staging" }}
+        {{- else if eq .Values.global.environment "sqe" }}
         "metricsEnabled": true,
         "healthCheckEnabled": true,
         "performanceMonitoring": true
@@ -99,7 +99,7 @@ data:
       {{- if eq .Values.global.environment "production" }}
       "start": "node server.js",
       "healthcheck": "node healthcheck.js"
-      {{- else if eq .Values.global.environment "staging" }}
+      {{- else if eq .Values.global.environment "sqe" }}
       "start": "node server.js",
       "healthcheck": "node healthcheck.js"
       {{- else }}

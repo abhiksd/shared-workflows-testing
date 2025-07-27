@@ -1,6 +1,6 @@
 # Staging environment values for nodejs-backend3
 global:
-  environment: staging
+  environment: sqe
   applicationName: nodejs-backend3
   applicationType: nodejs
 
@@ -8,14 +8,14 @@ replicaCount: 2
 
 image:
   repository: myregistry.azurecr.io/nodejs-backend3
-  tag: "staging-latest"
+  tag: "sqe-latest"
 
 ingress:
   enabled: true
   pathPrefix: "backend3"
   proxyBodySize: "1024m"
   hosts:
-    - host: staging.mydomain.com
+    - host: sqe.mydomain.com
 
 resources:
   limits:
@@ -27,13 +27,13 @@ resources:
 
 env:
   - name: ENVIRONMENT
-    value: "staging"
+    value: "sqe"
   - name: APPLICATION_NAME
     value: "nodejs-backend3"
   - name: PORT
     value: "3000"
   - name: NODE_ENV
-    value: "staging"
+    value: "sqe"
   - name: LOG_LEVEL
     value: "info"
 

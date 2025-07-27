@@ -38,7 +38,7 @@ curl -f https://dev.mydomain.com/grafana/api/health
 ```bash
 # Environment URLs
 DEV_URL="https://dev.mydomain.com/backend1"
-STAGING_URL="https://staging.mydomain.com/backend1"
+STAGING_URL="https://sqe.mydomain.com/backend1"
 PROD_URL="https://production.mydomain.com/backend1"
 
 # Health Checks
@@ -63,7 +63,7 @@ curl -s -H "Accept: application/json" $DEV_URL/api/users | jq '.'
 ```bash
 # Environment URLs
 DEV_URL="https://dev.mydomain.com/backend2"
-STAGING_URL="https://staging.mydomain.com/backend2"
+STAGING_URL="https://sqe.mydomain.com/backend2"
 PROD_URL="https://production.mydomain.com/backend2"
 
 # Health Checks
@@ -83,7 +83,7 @@ time curl -s $DEV_URL/actuator/health > /dev/null
 ```bash
 # Environment URLs
 DEV_URL="https://dev.mydomain.com/backend3"
-STAGING_URL="https://staging.mydomain.com/backend3"
+STAGING_URL="https://sqe.mydomain.com/backend3"
 PROD_URL="https://production.mydomain.com/backend3"
 
 # Health Checks
@@ -104,7 +104,7 @@ curl -s $DEV_URL/actuator/health | jq '.components.db.status'
 ```bash
 # Environment URLs
 DEV_URL="https://dev.mydomain.com/backend1"
-STAGING_URL="https://staging.mydomain.com/backend1"  
+STAGING_URL="https://sqe.mydomain.com/backend1"  
 PROD_URL="https://production.mydomain.com/backend1"
 
 # Health Checks
@@ -127,7 +127,7 @@ curl -s -H "Accept: application/json" $DEV_URL/api/notifications | jq '.'
 ```bash
 # Environment URLs  
 DEV_URL="https://dev.mydomain.com/backend2"
-STAGING_URL="https://staging.mydomain.com/backend2"
+STAGING_URL="https://sqe.mydomain.com/backend2"
 PROD_URL="https://production.mydomain.com/backend2"
 
 # Health Checks
@@ -144,7 +144,7 @@ curl -s -H "Accept: application/json" $DEV_URL/api/reports | jq '.'
 ```bash
 # Environment URLs
 DEV_URL="https://dev.mydomain.com/backend3"
-STAGING_URL="https://staging.mydomain.com/backend3"
+STAGING_URL="https://sqe.mydomain.com/backend3"
 PROD_URL="https://production.mydomain.com/backend3"
 
 # Health Checks
@@ -286,7 +286,7 @@ echo "=== DNS Resolution Verification ==="
 
 # Check DNS resolution
 nslookup dev.mydomain.com
-nslookup staging.mydomain.com
+nslookup sqe.mydomain.com
 nslookup production.mydomain.com
 
 # Verify DNS points to correct load balancer
@@ -300,7 +300,7 @@ dig dev.mydomain.com +short
 echo "=== HTTPS/TLS Verification ==="
 
 # Check SSL certificate validity
-for env in dev staging production; do
+for env in dev sqe production; do
   echo "=== $env.mydomain.com SSL Check ==="
   echo | openssl s_client -servername $env.mydomain.com -connect $env.mydomain.com:443 2>/dev/null | openssl x509 -noout -text | grep -E "(Subject:|Issuer:|Not Before:|Not After:)"
   
@@ -563,7 +563,7 @@ chmod +x health-check.sh
 
 # Run health check
 ./health-check.sh dev
-./health-check.sh staging  
+./health-check.sh sqe  
 ./health-check.sh production
 ```
 

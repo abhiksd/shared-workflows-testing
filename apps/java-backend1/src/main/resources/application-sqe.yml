@@ -2,12 +2,12 @@
 # Production-like settings with some testing-friendly configurations
 spring:
   profiles:
-    active: staging
+    active: sqe
   
   # PostgreSQL Database Configuration
   datasource:
-    url: jdbc:postgresql://${DB_HOST:staging-db.example.com}:${DB_PORT:5432}/${DB_NAME:javaapp_staging}
-    username: ${DB_USERNAME:javaapp_staging_user}
+    url: jdbc:postgresql://${DB_HOST:sqe-db.example.com}:${DB_PORT:5432}/${DB_NAME:javaapp_sqe}
+    username: ${DB_USERNAME:javaapp_sqe_user}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
@@ -42,7 +42,7 @@ spring:
   
   # Redis Configuration
   redis:
-    host: ${REDIS_HOST:staging-redis.example.com}
+    host: ${REDIS_HOST:sqe-redis.example.com}
     port: ${REDIS_PORT:6379}
     password: ${REDIS_PASSWORD}
     timeout: 3000ms
@@ -64,7 +64,7 @@ spring:
     redis:
       time-to-live: 1800000  # 30 minutes
       cache-null-values: false
-      key-prefix: "staging:cache:"
+      key-prefix: "sqe:cache:"
   
   # Security Configuration
   security:
@@ -112,7 +112,7 @@ logging:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
   file:
-    name: logs/java-app-staging.log
+    name: logs/java-app-sqe.log
     max-size: 200MB
     max-history: 60
     total-size-cap: 5GB
@@ -140,18 +140,18 @@ management:
         http.server.requests: 0.5,0.9,0.95,0.99
     tags:
       application: java-app
-      environment: staging
+      environment: sqe
       region: ${AZURE_REGION:eastus}
 
 # Application Configuration
 app:
   name: Java App
   version: ${APP_VERSION:1.0.0}
-  environment: staging
+  environment: sqe
   
   # CORS Configuration
   cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:https://staging-frontend.example.com,https://test.example.com}
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:https://sqe-frontend.example.com,https://test.example.com}
     allowed-methods: "GET,POST,PUT,DELETE,OPTIONS,PATCH"
     allowed-headers: "Content-Type,Authorization,X-Requested-With,X-API-Key"
     allow-credentials: true
@@ -162,7 +162,7 @@ app:
     secret: ${JWT_SECRET}
     expiration: ${JWT_EXPIRATION:28800000}  # 8 hours
     refresh-expiration: ${JWT_REFRESH_EXPIRATION:259200000}  # 3 days
-    issuer: ${JWT_ISSUER:staging-java-app}
+    issuer: ${JWT_ISSUER:sqe-java-app}
   
   # Rate Limiting
   rate-limit:
@@ -191,7 +191,7 @@ azure:
   storage:
     account-name: ${AZURE_STORAGE_ACCOUNT}
     account-key: ${AZURE_STORAGE_KEY}
-    container-name: ${AZURE_STORAGE_CONTAINER:staging-uploads}
+    container-name: ${AZURE_STORAGE_CONTAINER:sqe-uploads}
 
 # Database Migration
 flyway:
