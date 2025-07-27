@@ -12,10 +12,10 @@ inputs:
 outputs:
   release_url:
     description: 'URL of the created release'
-    value: ${{ steps.create_release.outputs.html_url }}
+    value: ${{ steps.create_release.outputs.url }}
   tag_name:
     description: 'Created tag name'
-    value: ${{ steps.create_release.outputs.tag_name }}
+    value: ${{ inputs.version }}
 
 runs:
   using: 'composite'
@@ -92,22 +92,8 @@ runs:
         echo "Created and pushed tag: ${TAG_NAME}"
       shell: bash
 
-    - name: Create GitHub Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ github.token }}
-      with:
-        tag_name: ${{ inputs.version }}
-        release_name: ${{ inputs.application_name }} ${{ inputs.version }}
-        body_path: release_notes.md
-        draft: false
-        prerelease: false
-
-    - name: Upload release artifacts
+    - name: Create deployment info artifact
       run: |
-        RELEASE_ID="${{ steps.create_release.outputs.id }}"
-        
         # Create deployment info file
         cat > deployment-info.json << EOF
         {
@@ -123,15 +109,22 @@ runs:
         }
         EOF
         
-        # Upload deployment info as release asset
-        curl -X POST \
-          -H "Authorization: token ${{ github.token }}" \
-          -H "Content-Type: application/json" \
-          --data-binary @deployment-info.json \
-          "https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?name=deployment-info.json"
-        
-        echo "Uploaded deployment info to release"
+        echo "Created deployment-info.json for release artifact"
       shell: bash
+
+    - name: Create GitHub Release
+      id: create_release
+      uses: softprops/action-gh-release@v1
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      with:
+        tag_name: ${{ inputs.version }}
+        name: ${{ inputs.application_name }} ${{ inputs.version }}
+        body_path: release_notes.md
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+        files: deployment-info.json
 
     - name: Generate release summary
       run: |
@@ -140,7 +133,7 @@ runs:
         
         **Application:** ${{ inputs.application_name }}
         **Version:** ${{ inputs.version }}
-        **Release URL:** ${{ steps.create_release.outputs.html_url }}
+        **Release URL:** ${{ steps.create_release.outputs.url }}
         **Tag:** ${{ inputs.version }}
         
         ### Release Information
@@ -156,7 +149,7 @@ runs:
         - [ ] Notify stakeholders
         
         ### Quick Links
-        - [View Release](${{ steps.create_release.outputs.html_url }})
+        - [View Release](${{ steps.create_release.outputs.url }})
         - [View Commit](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA})
         - [View Workflow Run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})
         EOF
