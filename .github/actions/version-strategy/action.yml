@@ -92,8 +92,22 @@ runs:
           echo "Using production version: ${VERSION}"
           
         elif [[ "${{ inputs.environment }}" == "ppr" ]]; then
-          # Pre-production - use production-like versioning with ppr prefix
-          VERSION="v1.0.0-ppr-${{ steps.date.outputs.date }}-${{ steps.sha.outputs.short_sha }}"
+          # Pre-production - use same semantic version as production (from release branch)
+          # Parse release branch to get version (e.g., release/v2.1.0 -> v2.1.0)
+          if [[ "${GITHUB_REF}" =~ refs/heads/release/(.+) ]]; then
+            RELEASE_VERSION="${BASH_REMATCH[1]}"
+            if [[ "${RELEASE_VERSION}" =~ ^v?([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
+              VERSION="${RELEASE_VERSION}"
+              # Ensure version starts with 'v'
+              [[ ! "${VERSION}" =~ ^v ]] && VERSION="v${VERSION}"
+            else
+              # Fallback if release branch doesn't follow semantic versioning
+              VERSION="v1.0.0-ppr-${{ steps.date.outputs.date }}-${{ steps.sha.outputs.short_sha }}"
+            fi
+          else
+            # Manual PPR deployment - use semantic version
+            VERSION="v1.0.0-ppr-${{ steps.date.outputs.date }}-${{ steps.sha.outputs.short_sha }}"
+          fi
           IMAGE_TAG="${VERSION}"
           HELM_VERSION="${VERSION}"
           echo "Using pre-production version: ${VERSION}"
