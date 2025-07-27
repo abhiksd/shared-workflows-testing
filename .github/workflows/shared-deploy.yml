@@ -42,13 +42,13 @@ on:
 
 env:
   REGISTRY: ${{ secrets.ACR_LOGIN_SERVER }}
-  # AKS Cluster Configuration - Centralized for easy management
-  AKS_CLUSTER_NAME_DEV: ${{ vars.AKS_CLUSTER_NAME_DEV }}
-  AKS_RESOURCE_GROUP_DEV: ${{ vars.AKS_RESOURCE_GROUP_DEV }}
-  AKS_CLUSTER_NAME_SQE: ${{ vars.AKS_CLUSTER_NAME_SQE }}
-  AKS_RESOURCE_GROUP_SQE: ${{ vars.AKS_RESOURCE_GROUP_SQE }}
-  AKS_CLUSTER_NAME_PROD: ${{ vars.AKS_CLUSTER_NAME_PROD }}
-  AKS_RESOURCE_GROUP_PROD: ${{ vars.AKS_RESOURCE_GROUP_PROD }}
+  # AKS Cluster Configuration - Centralized and hardcoded for simplicity
+  AKS_CLUSTER_NAME_DEV: "aks-cluster-dev"
+  AKS_RESOURCE_GROUP_DEV: "rg-aks-dev"
+  AKS_CLUSTER_NAME_SQE: "aks-cluster-sqe"
+  AKS_RESOURCE_GROUP_SQE: "rg-aks-sqe"
+  AKS_CLUSTER_NAME_PROD: "aks-cluster-prod"
+  AKS_RESOURCE_GROUP_PROD: "rg-aks-prod"
   
 jobs:
   validate-environment:
