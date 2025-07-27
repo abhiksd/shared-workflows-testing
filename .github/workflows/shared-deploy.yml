@@ -38,47 +38,17 @@ on:
         required: false
         type: boolean
         default: false
-      aks_cluster_name_dev:
-        description: 'AKS Dev Cluster name'
-        required: true
-        type: string
-      aks_resource_group_dev:
-        description: 'AKS Dev RG name'
-        required: true
-        type: string
-      aks_cluster_name_sqe:
-        description: 'AKS SQE Cluster name'
-        required: true
-        type: string
-      aks_resource_group_sqe:
-        description: 'AKS SQE RG name'
-        required: true
-        type: string
-      aks_cluster_name_prod:
-        description: 'AKS Prod cluster name'
-        required: true
-        type: string
-      aks_resource_group_prod:
-        description: 'AKS Prod RG name'
-        required: true
-        type: string
-      
-    secrets:
-      ACR_LOGIN_SERVER:
-        description: 'Azure Container Registry login server'
-        required: true
-      AZURE_TENANT_ID:
-        description: 'Azure Tenant ID'
-        required: true
-      AZURE_CLIENT_ID:
-        description: 'Azure Client ID (Managed Identity)'
-        required: true
-      AZURE_SUBSCRIPTION_ID:
-        description: 'Azure Subscription ID'
-        required: true
+    secrets: inherit
 
 env:
   REGISTRY: ${{ secrets.ACR_LOGIN_SERVER }}
+  # AKS Cluster Configuration - Centralized for easy management
+  AKS_CLUSTER_NAME_DEV: ${{ vars.AKS_CLUSTER_NAME_DEV }}
+  AKS_RESOURCE_GROUP_DEV: ${{ vars.AKS_RESOURCE_GROUP_DEV }}
+  AKS_CLUSTER_NAME_SQE: ${{ vars.AKS_CLUSTER_NAME_SQE }}
+  AKS_RESOURCE_GROUP_SQE: ${{ vars.AKS_RESOURCE_GROUP_SQE }}
+  AKS_CLUSTER_NAME_PROD: ${{ vars.AKS_CLUSTER_NAME_PROD }}
+  AKS_RESOURCE_GROUP_PROD: ${{ vars.AKS_RESOURCE_GROUP_PROD }}
   
 jobs:
   validate-environment:
@@ -128,8 +98,8 @@ jobs:
             "dev")
               if [[ "$GITHUB_REF" == "refs/heads/N630-6258_Helm_deploy" ]] || [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
                 SHOULD_DEPLOY="true"
-                AKS_CLUSTER="${{ inputs.aks_cluster_name_dev }}"
-                AKS_RG="${{ inputs.aks_resource_group_dev }}"
+                AKS_CLUSTER="${{ env.AKS_CLUSTER_NAME_DEV }}"
+                AKS_RG="${{ env.AKS_RESOURCE_GROUP_DEV }}"
                 echo "✅ Dev deployment approved: develop branch or manual trigger"
               else
                 echo "❌ Dev deployment blocked: must be develop branch or manual trigger"
@@ -138,8 +108,8 @@ jobs:
             "staging")
               if [[ "$GITHUB_REF" == "refs/heads/main" ]] || [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
                 SHOULD_DEPLOY="true"
-                AKS_CLUSTER="${{ secrets.aks_cluster_name_sqe }}"
-                AKS_RG="${{ secrets.aks_resource_group_sqe }}"
+                AKS_CLUSTER="${{ env.AKS_CLUSTER_NAME_SQE }}"
+                AKS_RG="${{ env.AKS_RESOURCE_GROUP_SQE }}"
                 echo "✅ Staging deployment approved: main branch or manual trigger"
               else
                 echo "❌ Staging deployment blocked: must be main branch or manual trigger"
@@ -148,8 +118,8 @@ jobs:
             "production")
               if [[ "$GITHUB_REF" == refs/heads/release/* ]] || [[ "$GITHUB_REF" == refs/tags/* ]] || [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
                 SHOULD_DEPLOY="true"
-                AKS_CLUSTER="${{ secrets.aks_cluster_name_prod }}"
-                AKS_RG="${{ secrets.aks_resource_group_prod }}"
+                AKS_CLUSTER="${{ env.AKS_CLUSTER_NAME_PROD }}"
+                AKS_RG="${{ env.AKS_RESOURCE_GROUP_PROD }}"
                 echo "✅ Production deployment approved: release branch, tag, or manual trigger"
               else
                 echo "❌ Production deployment blocked: must be release branch, tag, or manual trigger"
