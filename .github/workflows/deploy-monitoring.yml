@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       environment:
-        description: 'Target environment (dev, sqe, production)'
+        description: 'Target environment (dev, sqe, ppr, production)'
         required: true
         type: string
       aks_cluster_name:
@@ -45,6 +45,7 @@ on:
         options:
           - dev
           - sqe
+          - ppr
           - production
       aks_cluster_name:
         description: 'AKS cluster name'

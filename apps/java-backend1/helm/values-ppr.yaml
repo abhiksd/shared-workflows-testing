@@ -1,0 +1,54 @@
+# Production environment values for java-backend1
+global:
+  environment: ppr
+  applicationName: java-backend1
+  applicationType: java-springboot
+
+replicaCount: 3
+
+image:
+  repository: myregistry.azurecr.io/java-backend1
+  tag: "ppr-latest"
+
+ingress:
+  enabled: true
+  pathPrefix: "backend1"
+  proxyBodySize: "1024m"
+  hosts:
+    - host: ppr.mydomain.com
+
+resources:
+  limits:
+    cpu: 2000m
+    memory: 4Gi
+  requests:
+    cpu: 1000m
+    memory: 2Gi
+
+env:
+  - name: ENVIRONMENT
+    value: "ppr"
+  - name: APPLICATION_NAME
+    value: "java-backend1"
+  - name: SERVER_PORT
+    value: "8080"
+  - name: SPRING_PROFILES_ACTIVE
+    value: "ppr"
+  - name: LOG_LEVEL
+    value: "WARN"
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+monitoring:
+  enabled: true
+  servicemonitor:
+    enabled: true
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2

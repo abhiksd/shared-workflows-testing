@@ -570,6 +570,12 @@ runs:
             echo "   - Pre-production validation environment ready"
             echo "   - Enhanced monitoring and alerting active"
             ;;
+          "ppr")
+            echo "🔍 PPR deployment completed successfully!"
+            echo "   - Pre-production validation environment ready"
+            echo "   - Production-like configuration active"
+            echo "   - Final validation before production deployment"
+            ;;
           "production")
             echo "🏭 Production deployment completed successfully!"
             echo "   - Live workload deployment complete"

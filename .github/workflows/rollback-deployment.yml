@@ -15,6 +15,7 @@ on:
         options:
           - dev
           - sqe
+          - ppr
           - production
       application_name:
         description: 'Application name to rollback'
@@ -56,6 +57,8 @@ env:
   AKS_RESOURCE_GROUP_DEV: "rg-platform-dev"
   AKS_CLUSTER_NAME_SQE: "aks-platform-sqe"
   AKS_RESOURCE_GROUP_SQE: "rg-platform-sqe"
+  AKS_CLUSTER_NAME_PPR: "aks-platform-ppr"
+  AKS_RESOURCE_GROUP_PPR: "rg-platform-ppr"
   AKS_CLUSTER_NAME_PROD: "aks-platform-prod"
   AKS_RESOURCE_GROUP_PROD: "rg-platform-prod"
 

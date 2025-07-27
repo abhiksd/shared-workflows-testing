@@ -91,6 +91,13 @@ runs:
           HELM_VERSION="${VERSION}"
           echo "Using production version: ${VERSION}"
           
+        elif [[ "${{ inputs.environment }}" == "ppr" ]]; then
+          # Pre-production - use production-like versioning with ppr prefix
+          VERSION="v1.0.0-ppr-${{ steps.date.outputs.date }}-${{ steps.sha.outputs.short_sha }}"
+          IMAGE_TAG="${VERSION}"
+          HELM_VERSION="${VERSION}"
+          echo "Using pre-production version: ${VERSION}"
+          
         else
           # Development/sqe - use short SHA and environment
           VERSION="${{ inputs.environment }}-${{ steps.sha.outputs.short_sha }}"

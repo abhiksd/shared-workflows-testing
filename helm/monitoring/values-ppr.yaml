@@ -1,0 +1,162 @@
+# Production Environment Values for AKS Monitoring
+
+global:
+  environment: ppr
+  clusterName: "aks-prod-cluster"
+  region: "eastus"
+
+# Full ppr configuration
+kube-prometheus-stack:
+  prometheus:
+    prometheusSpec:
+      # Full storage for ppr
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: managed-csi-premium
+            resources:
+              requests:
+                storage: 100Gi
+      
+      # Extended retention for ppr
+      retention: 90d
+      retentionSize: 90GB
+      
+      # Full resources for ppr
+      resources:
+        requests:
+          memory: 4Gi
+          cpu: 1000m
+        limits:
+          memory: 8Gi
+          cpu: 2000m
+      
+      # High availability
+      replicas: 2
+      
+      # Pod anti-affinity for high availability
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                - prometheus
+            topologyKey: kubernetes.io/hostname
+  
+  alertmanager:
+    alertmanagerSpec:
+      storage:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: managed-csi-premium
+            resources:
+              requests:
+                storage: 20Gi
+      
+      resources:
+        requests:
+          memory: 512Mi
+          cpu: 200m
+        limits:
+          memory: 1Gi
+          cpu: 400m
+      
+      # High availability
+      replicas: 3
+      
+      # Pod anti-affinity
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                - alertmanager
+            topologyKey: kubernetes.io/hostname
+
+# Grafana with high availability
+grafana:
+  # High availability
+  replicas: 2
+  
+  persistence:
+    storageClassName: managed-csi-premium
+    size: 20Gi
+  
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 200m
+    limits:
+      memory: 1Gi
+      cpu: 400m
+  
+  # Internal load balancer with session affinity
+  service:
+    type: LoadBalancer
+    annotations:
+      service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+      service.beta.kubernetes.io/azure-load-balancer-internal-subnet: "monitoring-subnet"
+  
+  # Pod anti-affinity for high availability
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - grafana
+        topologyKey: kubernetes.io/hostname
+
+# Loki with high availability and full storage
+loki-stack:
+  loki:
+    persistence:
+      size: 200Gi
+      storageClassName: managed-csi-premium
+    
+    # Resource requirements for ppr
+    resources:
+      requests:
+        memory: 1Gi
+        cpu: 500m
+      limits:
+        memory: 2Gi
+        cpu: 1000m
+
+# Strict alerting for ppr
+alerting:
+  critical:
+    applicationDown:
+      duration: "2m"
+    highErrorRate:
+      threshold: 5
+      duration: "5m"
+    podCrashLoop:
+      duration: "3m"
+  
+  warning:
+    highCpuUsage:
+      threshold: 80
+      duration: "10m"
+    highMemoryUsage:
+      threshold: 80
+      duration: "10m"
+    highDiskUsage:
+      threshold: 85
+      duration: "5m"
+
+# Enable network policies for ppr
+networkPolicy:
+  enabled: true
+
+# Enable pod security policies for ppr
+podSecurityPolicy:
+  enabled: true

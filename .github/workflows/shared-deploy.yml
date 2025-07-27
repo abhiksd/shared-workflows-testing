@@ -7,7 +7,7 @@ on:
   workflow_call:
     inputs:
       environment:
-        description: 'Target environment (dev, sqe, production)'
+        description: 'Target environment (dev, sqe, ppr, production)'
         required: true
         type: string
       application_name:
@@ -47,6 +47,8 @@ env:
   AKS_RESOURCE_GROUP_DEV: "rg-aks-dev"
   AKS_CLUSTER_NAME_SQE: "aks-cluster-sqe"
   AKS_RESOURCE_GROUP_SQE: "rg-aks-sqe"
+  AKS_CLUSTER_NAME_PPR: "aks-cluster-ppr"
+  AKS_RESOURCE_GROUP_PPR: "rg-aks-ppr"
   AKS_CLUSTER_NAME_PROD: "aks-cluster-prod"
   AKS_RESOURCE_GROUP_PROD: "rg-aks-prod"
   
@@ -81,6 +83,8 @@ jobs:
               TARGET_ENV="dev"
             elif [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
               TARGET_ENV="sqe"
+            elif [[ "$GITHUB_REF" == refs/heads/ppr/* ]]; then
+              TARGET_ENV="ppr"
             elif [[ "$GITHUB_REF" == refs/heads/release/* ]] || [[ "$GITHUB_REF" == refs/tags/* ]]; then
               TARGET_ENV="production"
             else
@@ -113,6 +117,16 @@ jobs:
                 echo "✅ SQE deployment approved: main branch or manual trigger"
               else
                 echo "❌ SQE deployment blocked: must be main branch or manual trigger"
+              fi
+              ;;
+            "ppr")
+              if [[ "$GITHUB_REF" == refs/heads/ppr/* ]] || [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+                SHOULD_DEPLOY="true"
+                AKS_CLUSTER="${{ env.AKS_CLUSTER_NAME_PPR }}"
+                AKS_RG="${{ env.AKS_RESOURCE_GROUP_PPR }}"
+                echo "✅ PPR deployment approved: ppr branch or manual trigger"
+              else
+                echo "❌ PPR deployment blocked: must be ppr branch or manual trigger"
               fi
               ;;
             "production")
@@ -411,12 +425,12 @@ jobs:
     outputs:
       release_url: ${{ steps.create_release.outputs.release_url }}
       tag_name: ${{ steps.create_release.outputs.tag_name }}
-    # Only create releases for production deployments from release branches or tags
+    # Only create releases for production and ppr deployments from appropriate branches or tags
     if: |
       needs.validate-environment.outputs.should_deploy == 'true' && 
       needs.setup.outputs.should_deploy == 'true' && 
-      needs.validate-environment.outputs.target_environment == 'production' && 
-      (startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/tags/')) &&
+      (needs.validate-environment.outputs.target_environment == 'production' || needs.validate-environment.outputs.target_environment == 'ppr') && 
+      (startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/heads/ppr/') || startsWith(github.ref, 'refs/tags/')) &&
       !failure() && !cancelled()
     steps:
       - name: Checkout

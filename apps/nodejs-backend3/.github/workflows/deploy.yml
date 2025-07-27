@@ -31,6 +31,7 @@ on:
         options:
           - dev
           - sqe
+          - ppr
           - production
       force_deploy:
         description: 'Force deployment even if no changes'

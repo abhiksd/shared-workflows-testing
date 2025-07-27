@@ -20,6 +20,7 @@ on:
         options:
           - dev
           - sqe
+          - ppr
           - production
           - all
       force_deploy:
@@ -46,6 +47,7 @@ jobs:
       monitoring_changed: ${{ steps.changes.outputs.monitoring_changed }}
       should_deploy_dev: ${{ steps.strategy.outputs.should_deploy_dev }}
       should_deploy_sqe: ${{ steps.strategy.outputs.should_deploy_sqe }}
+      should_deploy_ppr: ${{ steps.strategy.outputs.should_deploy_ppr }}
       should_deploy_production: ${{ steps.strategy.outputs.should_deploy_production }}
       deployment_reason: ${{ steps.strategy.outputs.deployment_reason }}
     steps:
@@ -117,6 +119,7 @@ jobs:
           
           echo "should_deploy_dev=$DEV" >> $GITHUB_OUTPUT
           echo "should_deploy_sqe=$STAGING" >> $GITHUB_OUTPUT
+        echo "should_deploy_ppr=$STAGING" >> $GITHUB_OUTPUT
           echo "should_deploy_production=$PRODUCTION" >> $GITHUB_OUTPUT
           echo "deployment_reason=$REASON" >> $GITHUB_OUTPUT
           
