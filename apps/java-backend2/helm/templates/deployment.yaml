@@ -29,9 +29,7 @@ spec:
         {{- end }}
       labels:
         {{- include "java-backend2.selectorLabels" . | nindent 8 }}
-        {{- if .Values.azureKeyVault.enabled }}
-        azure.workload.identity/use: "true"
-        {{- end }}
+
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -98,13 +96,7 @@ spec:
                   name: {{ include "java-backend2.fullname" . }}-config
                   key: DEBUG
             {{- end }}
-            # Azure Key Vault Secrets Path
-            {{- if .Values.azureKeyVault.enabled }}
-            - name: AZURE_KEYVAULT_SECRETS_PATH
-              value: {{ .Values.azureKeyVault.mountPath | default "/mnt/secrets-store" }}
-            - name: SPRING_CLOUD_AZURE_KEYVAULT_SECRET_ENABLED
-              value: "true"
-            {{- end }}
+
             # Additional Environment Variables
             {{- range .Values.env }}
             - name: {{ .name }}
@@ -137,11 +129,6 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
-            {{- if .Values.azureKeyVault.enabled }}
-            - name: secrets-store
-              mountPath: {{ .Values.azureKeyVault.mountPath | default "/mnt/secrets-store" }}
-              readOnly: true
-            {{- end }}
             {{- if .Values.configMap.enabled }}
             - name: config-volume
               mountPath: /etc/config
@@ -151,14 +138,6 @@ spec:
             {{- toYaml .Values.volumeMounts | nindent 12 }}
             {{- end }}
       volumes:
-        {{- if .Values.azureKeyVault.enabled }}
-        - name: secrets-store
-          csi:
-            driver: secrets-store.csi.k8s.io
-            readOnly: true
-            volumeAttributes:
-              secretProviderClass: {{ include "java-backend2.fullname" . }}-keyvault
-        {{- end }}
         {{- if .Values.configMap.enabled }}
         - name: config-volume
           configMap:

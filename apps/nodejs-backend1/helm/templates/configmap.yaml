@@ -76,14 +76,6 @@ data:
         "readinessEndpoint": "{{ .Values.readinessProbe.httpGet.path }}",
         "timeout": 5000
       },
-      {{- if .Values.azureKeyVault.enabled }}
-      "secrets": {
-        "enabled": true,
-        "provider": "azure-keyvault",
-        "mountPath": "{{ .Values.azureKeyVault.mountPath | default "/mnt/secrets-store" }}",
-        "autoReload": false
-      },
-      {{- end }}
       "monitoring": {
         {{- if eq .Values.global.environment "production" }}
         "metricsEnabled": true,

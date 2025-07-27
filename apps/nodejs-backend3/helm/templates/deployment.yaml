@@ -29,9 +29,7 @@ spec:
         {{- end }}
       labels:
         {{- include "nodejs-backend3.selectorLabels" . | nindent 8 }}
-        {{- if .Values.azureKeyVault.enabled }}
-        azure.workload.identity/use: "true"
-        {{- end }}
+
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -85,13 +83,7 @@ spec:
                   name: {{ include "nodejs-backend3.fullname" . }}-config
                   key: NODE_OPTIONS
             {{- end }}
-            # Azure Key Vault Secrets Path
-            {{- if .Values.azureKeyVault.enabled }}
-            - name: AZURE_KEYVAULT_SECRETS_PATH
-              value: {{ .Values.azureKeyVault.mountPath | default "/mnt/secrets-store" }}
-            - name: SECRETS_ENABLED
-              value: "true"
-            {{- end }}
+
             # Health Check Configuration
             - name: HEALTH_CHECK_PORT
               value: "{{ .Values.service.port }}"
@@ -131,11 +123,6 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
-            {{- if .Values.azureKeyVault.enabled }}
-            - name: secrets-store
-              mountPath: {{ .Values.azureKeyVault.mountPath | default "/mnt/secrets-store" }}
-              readOnly: true
-            {{- end }}
             {{- if .Values.configMap.enabled }}
             - name: config-volume
               mountPath: /etc/config
@@ -145,14 +132,6 @@ spec:
             {{- toYaml .Values.volumeMounts | nindent 12 }}
             {{- end }}
       volumes:
-        {{- if .Values.azureKeyVault.enabled }}
-        - name: secrets-store
-          csi:
-            driver: secrets-store.csi.k8s.io
-            readOnly: true
-            volumeAttributes:
-              secretProviderClass: {{ include "nodejs-backend3.fullname" . }}-keyvault
-        {{- end }}
         {{- if .Values.configMap.enabled }}
         - name: config-volume
           configMap:

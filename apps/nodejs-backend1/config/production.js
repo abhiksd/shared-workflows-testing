@@ -345,16 +345,7 @@ module.exports = {
     encryption: true
   },
 
-  // Azure Key Vault integration
-  azure: {
-    keyVault: {
-      uri: process.env.AZURE_KEYVAULT_URI || 'https://keyvault-prod.vault.azure.net/',
-      clientId: process.env.AZURE_CLIENT_ID,
-      tenantId: process.env.AZURE_TENANT_ID,
-      refreshPeriod: 60 * 60 * 1000, // 1 hour
-      secretKeys: ['db-password', 'redis-password', 'session-secret', 'jwt-secret']
-    }
-  },
+
 
   // Production-specific health checks
   health: {

@@ -60,7 +60,7 @@
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "passport-azure-ad": "^4.3.5",
-    "@azure/keyvault-secrets": "^4.7.0",
+
     "@azure/identity": "^4.0.1",
     "@azure/storage-blob": "^12.17.0",
     "@azure/monitor-opentelemetry-exporter": "^1.0.0-beta.20",

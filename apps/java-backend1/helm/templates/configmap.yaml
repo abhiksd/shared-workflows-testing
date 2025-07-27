@@ -43,12 +43,7 @@ data:
   {{- end }}
   logging.pattern.console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
   logging.pattern.file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
-  # Azure Key Vault Integration
-  {{- if .Values.azureKeyVault.enabled }}
-  spring.cloud.azure.keyvault.secret.enabled: "true"
-  spring.cloud.azure.keyvault.secret.property-sources[0].endpoint: "https://{{ .Values.azureKeyVault.keyvaultName }}.vault.azure.net/"
-  spring.cloud.azure.keyvault.secret.property-sources[0].name: "{{ .Values.azureKeyVault.keyvaultName }}"
-  {{- end }}
+
   # Environment-specific properties file
   application-{{ .Values.global.environment }}.yml: |
     spring:
@@ -56,16 +51,7 @@ data:
         active: {{ .Values.global.environment }}
       application:
         name: {{ .Values.global.applicationName }}
-      {{- if .Values.azureKeyVault.enabled }}
-      cloud:
-        azure:
-          keyvault:
-            secret:
-              enabled: true
-              property-sources:
-                - endpoint: https://{{ .Values.azureKeyVault.keyvaultName }}.vault.azure.net/
-                  name: {{ .Values.azureKeyVault.keyvaultName }}
-      {{- end }}
+
     server:
       port: {{ .Values.service.port }}
     management:

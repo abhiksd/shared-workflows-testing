@@ -30,16 +30,13 @@ inputs:
     description: 'AKS resource group (inherited from validate-environment)'
     required: true
   azure_tenant_id:
-    description: 'Azure Tenant ID for Key Vault'
+    description: 'Azure Tenant ID'
     required: false
   azure_client_id:
     description: 'Azure Client ID (App Registration) for OIDC authentication'
     required: false
   azure_subscription_id:
     description: 'Azure Subscription ID for OIDC authentication'
-    required: false
-  keyvault_name:
-    description: 'Azure Key Vault name'
     required: false
   deployment_context:
     description: 'JSON deployment context passed from validate-environment'
@@ -368,18 +365,7 @@ runs:
             value: ${{ inputs.aks_resource_group }}
         EOF
         
-        # Add Azure Key Vault configuration if provided
-        if [[ -n "${{ inputs.azure_tenant_id }}" && -n "${{ inputs.azure_client_id }}" && -n "${{ inputs.keyvault_name }}" ]]; then
-          cat >> ${RUNTIME_VALUES_FILE} << EOF
-        
-        # Azure Key Vault configuration - Inherited from secrets
-        azureKeyVault:
-          tenantId: "${{ inputs.azure_tenant_id }}"
-          userAssignedIdentityID: "${{ inputs.azure_client_id }}"
-          keyvaultName: "${{ inputs.keyvault_name }}"
-        EOF
-          echo "✅ Azure Key Vault configuration added to runtime values"
-        fi
+
         
         # Add deployment context metadata if available
         if [[ -n "${{ inputs.deployment_context }}" ]]; then

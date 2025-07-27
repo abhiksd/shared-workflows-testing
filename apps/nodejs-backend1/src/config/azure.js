@@ -1,10 +1,8 @@
 const { DefaultAzureCredential } = require('@azure/identity');
-const { SecretClient } = require('@azure/keyvault-secrets');
 const { BlobServiceClient } = require('@azure/storage-blob');
 const config = require('config');
 const logger = require('../utils/logger');
 
-let keyVaultClient = null;
 let blobServiceClient = null;
 let isAzureEnabled = false;
 
@@ -22,25 +20,7 @@ async function initializeAzureServices() {
     // Initialize Azure credential
     const credential = new DefaultAzureCredential();
 
-    // Initialize Key Vault client
-    if (config.get('azure.keyVault.enabled')) {
-      const keyVaultUrl = config.get('azure.keyVault.uri');
-      if (keyVaultUrl) {
-        keyVaultClient = new SecretClient(keyVaultUrl, credential);
-        
-        // Test Key Vault connection
-        try {
-          await keyVaultClient.getSecret('test-connection');
-        } catch (error) {
-          // It's OK if the secret doesn't exist, we just want to test connectivity
-          if (error.code !== 'SecretNotFound') {
-            logger.warn('Key Vault connectivity test failed', { error: error.message });
-          }
-        }
-        
-        logger.info('Key Vault client initialized successfully');
-      }
-    }
+
 
     // Initialize Blob Storage client
     if (config.get('azure.storage.enabled')) {
@@ -69,116 +49,7 @@ async function initializeAzureServices() {
   }
 }
 
-// Key Vault operations
-const KeyVaultOperations = {
-  async getSecret(secretName) {
-    if (!keyVaultClient) {
-      throw new Error('Key Vault client not initialized');
-    }
 
-    try {
-      const startTime = Date.now();
-      const secret = await keyVaultClient.getSecret(secretName);
-      const duration = Date.now() - startTime;
-      
-      logger.debug('Key Vault secret retrieved', {
-        secretName,
-        duration: `${duration}ms`
-      });
-      
-      return secret.value;
-    } catch (error) {
-      logger.error('Failed to retrieve secret from Key Vault', {
-        secretName,
-        error: error.message
-      });
-      throw error;
-    }
-  },
-
-  async setSecret(secretName, secretValue) {
-    if (!keyVaultClient) {
-      throw new Error('Key Vault client not initialized');
-    }
-
-    try {
-      const startTime = Date.now();
-      const result = await keyVaultClient.setSecret(secretName, secretValue);
-      const duration = Date.now() - startTime;
-      
-      logger.info('Key Vault secret stored', {
-        secretName,
-        duration: `${duration}ms`
-      });
-      
-      return result;
-    } catch (error) {
-      logger.error('Failed to store secret in Key Vault', {
-        secretName,
-        error: error.message
-      });
-      throw error;
-    }
-  },
-
-  async deleteSecret(secretName) {
-    if (!keyVaultClient) {
-      throw new Error('Key Vault client not initialized');
-    }
-
-    try {
-      const startTime = Date.now();
-      const result = await keyVaultClient.beginDeleteSecret(secretName);
-      const duration = Date.now() - startTime;
-      
-      logger.info('Key Vault secret deleted', {
-        secretName,
-        duration: `${duration}ms`
-      });
-      
-      return result;
-    } catch (error) {
-      logger.error('Failed to delete secret from Key Vault', {
-        secretName,
-        error: error.message
-      });
-      throw error;
-    }
-  },
-
-  async listSecrets() {
-    if (!keyVaultClient) {
-      throw new Error('Key Vault client not initialized');
-    }
-
-    try {
-      const startTime = Date.now();
-      const secrets = [];
-      
-      for await (const secretProperties of keyVaultClient.listPropertiesOfSecrets()) {
-        secrets.push({
-          name: secretProperties.name,
-          enabled: secretProperties.enabled,
-          createdOn: secretProperties.createdOn,
-          updatedOn: secretProperties.updatedOn
-        });
-      }
-      
-      const duration = Date.now() - startTime;
-      logger.debug('Key Vault secrets listed', {
-        count: secrets.length,
-        duration: `${duration}ms`
-      });
-      
-      return secrets;
-    } catch (error) {
-      logger.error('Failed to list secrets from Key Vault', {
-        error: error.message
-      });
-      throw error;
-    }
-  }
-};
 
 // Blob Storage operations
 const BlobStorageOperations = {
@@ -349,30 +220,11 @@ async function streamToBuffer(readableStream) {
 // Health check for Azure services
 async function checkAzureHealth() {
   const health = {
-    keyVault: { status: 'disabled' },
     blobStorage: { status: 'disabled' }
   };
 
   if (!isAzureEnabled) {
     return health;
-  }
-
-  // Check Key Vault health
-  if (keyVaultClient) {
-    try {
-      const startTime = Date.now();
-      await keyVaultClient.getSecret('health-check');
-      health.keyVault = {
-        status: 'healthy',
-        responseTime: `${Date.now() - startTime}ms`
-      };
-    } catch (error) {
-      if (error.code === 'SecretNotFound') {
-        health.keyVault = { status: 'healthy', note: 'Connected but health-check secret not found' };
-      } else {
-        health.keyVault = { status: 'unhealthy', error: error.message };
-      }
-    }
   }
 
   // Check Blob Storage health
@@ -392,43 +244,11 @@ async function checkAzureHealth() {
   return health;
 }
 
-// Get environment-specific configuration from Key Vault
-async function loadConfigFromKeyVault() {
-  if (!keyVaultClient || !config.get('azure.keyVault.loadConfig')) {
-    return {};
-  }
 
-  try {
-    const environment = config.get('app.environment');
-    const configSecrets = config.get('azure.keyVault.configSecrets') || [];
-    const loadedConfig = {};
-
-    for (const secretName of configSecrets) {
-      try {
-        const fullSecretName = `${environment}-${secretName}`;
-        const secretValue = await KeyVaultOperations.getSecret(fullSecretName);
-        loadedConfig[secretName] = secretValue;
-      } catch (error) {
-        logger.warn(`Failed to load config secret: ${secretName}`, { error: error.message });
-      }
-    }
-
-    logger.info('Configuration loaded from Key Vault', {
-      secretsLoaded: Object.keys(loadedConfig).length
-    });
-
-    return loadedConfig;
-  } catch (error) {
-    logger.error('Failed to load configuration from Key Vault', { error: error.message });
-    return {};
-  }
-}
 
 module.exports = {
   initializeAzureServices,
-  KeyVaultOperations,
   BlobStorageOperations,
   checkAzureHealth,
-  loadConfigFromKeyVault,
   isAzureEnabled: () => isAzureEnabled
 };

@@ -291,15 +291,7 @@ module.exports = {
     tempDir: process.env.TEMP_DIR || '/tmp'
   },
 
-  // Azure Key Vault integration
-  azure: {
-    keyVault: {
-      uri: process.env.AZURE_KEYVAULT_URI || 'https://keyvault-staging.vault.azure.net/',
-      clientId: process.env.AZURE_CLIENT_ID,
-      tenantId: process.env.AZURE_TENANT_ID,
-      refreshPeriod: 30 * 60 * 1000 // 30 minutes
-    }
-  },
+
 
   // Staging-specific health checks
   health: {

@@ -67,17 +67,14 @@ on:
       ACR_LOGIN_SERVER:
         description: 'Azure Container Registry login server'
         required: true
-      KEYVAULT_NAME:
-        description: 'Azure Key Vault name'
-        required: true
       AZURE_TENANT_ID:
-        description: 'Azure Tenant ID for Key Vault access'
+        description: 'Azure Tenant ID'
         required: true
       AZURE_CLIENT_ID:
-        description: 'Azure Client ID (Managed Identity) for Key Vault access'
+        description: 'Azure Client ID (Managed Identity)'
         required: true
       AZURE_SUBSCRIPTION_ID:
-        description: 'Azure Subscriptin ID'
+        description: 'Azure Subscription ID'
         required: true
 
 env:
@@ -434,7 +431,6 @@ jobs:
           azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
           azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
           azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          keyvault_name: ${{ secrets.KEYVAULT_NAME }}
 
   create_release:
     runs-on: ubuntu-latest

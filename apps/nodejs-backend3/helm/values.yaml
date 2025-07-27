@@ -159,30 +159,7 @@ monitoring:
 tests:
   enabled: false
 
-# Azure Key Vault integration
-azureKeyVault:
-  enabled: false
-  keyvaultName: ""
-  tenantId: ""
-  userAssignedIdentityID: ""
-  mountPath: "/mnt/secrets-store"
-  secrets:
-    - objectName: "db-connection-string"
-      objectAlias: "db-connection-string"
-    - objectName: "api-key"
-      objectAlias: "api-key"
-    - objectName: "session-secret"
-      objectAlias: "session-secret"
-  secretObjects:
-    - secretName: "app-secrets"
-      type: "Opaque"
-      data:
-        - objectName: "db-connection-string"
-          key: "db-connection-string"
-        - objectName: "api-key"
-          key: "api-key"
-        - objectName: "session-secret"
-          key: "session-secret"
+
 
 # Monitoring configuration
 monitoring:

@@ -159,30 +159,7 @@ monitoring:
 tests:
   enabled: false
 
-# Azure Key Vault integration
-azureKeyVault:
-  enabled: false
-  keyvaultName: ""
-  tenantId: ""
-  userAssignedIdentityID: ""
-  mountPath: "/mnt/secrets-store"
-  secrets:
-    - objectName: "db-password"
-      objectAlias: "db-password"
-    - objectName: "api-key"
-      objectAlias: "api-key"
-    - objectName: "jwt-secret"
-      objectAlias: "jwt-secret"
-  secretObjects:
-    - secretName: "app-secrets"
-      type: "Opaque"
-      data:
-        - objectName: "db-password"
-          key: "db-password"
-        - objectName: "api-key"  
-          key: "api-key"
-        - objectName: "jwt-secret"
-          key: "jwt-secret"
+
 
 # Monitoring configuration
 monitoring:
