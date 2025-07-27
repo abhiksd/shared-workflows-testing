@@ -77,12 +77,12 @@ jobs:
           
           # Auto-detect environment if 'auto' is specified
           if [[ "$ENVIRONMENT" == "auto" ]]; then
-            if [[ "$GITHUB_REF" == "refs/heads/N630-6258_Helm_deploy" ]]; then
+            if [[ "$GITHUB_REF" == "refs/heads/develop" ]]; then
               TARGET_ENV="dev"
             elif [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
-              TARGET_ENV="sqe"
+              TARGET_ENV="staging"
             elif [[ "$GITHUB_REF" == refs/heads/release/* ]] || [[ "$GITHUB_REF" == refs/tags/* ]]; then
-              TARGET_ENV="prod"
+              TARGET_ENV="production"
             else
               echo "❌ Auto environment detection failed: unsupported branch $GITHUB_REF"
               TARGET_ENV="unknown"
@@ -96,7 +96,7 @@ jobs:
           # Validate deployment rules based on target environment
           case "$TARGET_ENV" in
             "dev")
-              if [[ "$GITHUB_REF" == "refs/heads/N630-6258_Helm_deploy" ]] || [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+              if [[ "$GITHUB_REF" == "refs/heads/develop" ]] || [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
                 SHOULD_DEPLOY="true"
                 AKS_CLUSTER="${{ env.AKS_CLUSTER_NAME_DEV }}"
                 AKS_RG="${{ env.AKS_RESOURCE_GROUP_DEV }}"
