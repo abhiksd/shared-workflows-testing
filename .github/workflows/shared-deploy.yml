@@ -56,8 +56,8 @@ jobs:
     outputs:
       should_deploy: ${{ steps.check.outputs.should_deploy }}
       target_environment: ${{ steps.check.outputs.target_environment }}
-      aks_cluster_name_1: ${{ steps.check.outputs.aks_cluster_name }}
-      aks_resource_group_1: ${{ steps.check.outputs.aks_resource_group }}
+      aks_cluster_name: ${{ steps.check.outputs.aks_cluster_name }}
+      aks_resource_group: ${{ steps.check.outputs.aks_resource_group }}
     steps:
       - name: Validate environment and branch rules
         id: check
@@ -370,20 +370,20 @@ jobs:
           echo "🔍 What deploy job received from validate-environment:"
           echo "should_deploy: '${{ needs.validate-environment.outputs.should_deploy }}'"
           echo "target_environment: '${{ needs.validate-environment.outputs.target_environment }}'"
-          echo "aks_cluster_name: '${{ needs.validate-environment.outputs.aks_cluster_name_1 }}'"
-          echo "aks_resource_group: '${{ needs.validate-environment.outputs.aks_resource_group_1 }}'"
+                      echo "aks_cluster_name: '${{ needs.validate-environment.outputs.aks_cluster_name }}'"
+                      echo "aks_resource_group: '${{ needs.validate-environment.outputs.aks_resource_group }}'"
           echo ""
           echo "🔍 Checking if values are null or empty:"
-          if [ -z "${{ needs.validate-environment.outputs.aks_cluster_name_1 }}" ]; then
+          if [ -z "${{ needs.validate-environment.outputs.aks_cluster_name }}" ]; then
             echo "❌ aks_cluster_name is NULL/EMPTY in deploy job"
           else
             echo "✅ aks_cluster_name received: '${{ needs.validate-environment.outputs.aks_cluster_name }}'"
           fi
           
-          if [ -z "${{ needs.validate-environment.outputs.aks_resource_group_1 }}" ]; then
+          if [ -z "${{ needs.validate-environment.outputs.aks_resource_group }}" ]; then
             echo "❌ aks_resource_group is NULL/EMPTY in deploy job"
           else
-            echo "✅ aks_resource_group received: '${{ needs.validate-environment.outputs.aks_resource_group_1 }}'"
+            echo "✅ aks_resource_group received: '${{ needs.validate-environment.outputs.aks_resource_group }}'"
           fi
 
       - name: Deploy to AKS
@@ -396,8 +396,8 @@ jobs:
           image_tag: ${{ needs.setup.outputs.image_tag }}
           helm_version: ${{ needs.setup.outputs.helm_version }}
           registry: ${{ env.REGISTRY }}
-          aks_cluster_name: ${{ needs.validate-environment.outputs.aks_cluster_name_1 }}
-          aks_resource_group: ${{ needs.validate-environment.outputs.aks_resource_group_1 }}
+          aks_cluster_name: ${{ needs.validate-environment.outputs.aks_cluster_name }}
+          aks_resource_group: ${{ needs.validate-environment.outputs.aks_resource_group }}
           azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
           azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
           azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
