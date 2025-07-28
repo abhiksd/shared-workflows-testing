@@ -144,11 +144,11 @@ EOF
 
 # Create basic Java application structure
 echo "☕ Creating basic Java application structure..."
-mkdir -p src/main/java/com/company/$(echo $APP_NAME | tr '-' '')
-mkdir -p src/test/java/com/company/$(echo $APP_NAME | tr '-' '')
+mkdir -p src/main/java/com/company/$(echo $APP_NAME | tr '-' '_')
+mkdir -p src/test/java/com/company/$(echo $APP_NAME | tr '-' '_')
 
 # Create main application class
-JAVA_PACKAGE=$(echo $APP_NAME | tr '-' '')
+JAVA_PACKAGE=$(echo $APP_NAME | tr '-' '_')
 JAVA_CLASS=$(echo $APP_NAME | sed 's/-//g' | sed 's/\b\w/\U&/g')
 
 cat > "src/main/java/com/company/$JAVA_PACKAGE/${JAVA_CLASS}Application.java" << EOF
