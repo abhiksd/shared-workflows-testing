@@ -23,11 +23,6 @@ outputs:
 runs:
   using: 'composite'
   steps:
-    - name: Get current date
-      id: date
-      run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
-      shell: bash
-
     - name: Get short SHA
       id: sha
       run: echo "short_sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
@@ -45,75 +40,77 @@ runs:
         HELM_VERSION=""
         
         if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-          # Tag push - use the tag as version
+          # Tag push - Production deployment using clean semantic version
           TAG_VERSION=${GITHUB_REF#refs/tags/}
-          VERSION="${TAG_VERSION}"
-          IMAGE_TAG="${TAG_VERSION}"
-          HELM_VERSION="${TAG_VERSION}"
-          echo "Using tag version: ${VERSION}"
+          # Remove 'v' prefix if present for consistency, then add it back
+          CLEAN_VERSION=${TAG_VERSION#v}
+          VERSION="v${CLEAN_VERSION}"
+          IMAGE_TAG="${VERSION}"
+          HELM_VERSION="${CLEAN_VERSION}"
+          echo "Using production tag version: ${VERSION}"
           
         elif [[ "${{ github.ref }}" == refs/heads/release/* ]]; then
-          # Release branch - generate semantic version
+          # Release branch - PPR deployment using clean semantic version (no date/SHA)
           RELEASE_VERSION=${GITHUB_REF#refs/heads/release/}
           
-          # Get the latest tag to determine next version
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          echo "Latest tag: ${LATEST_TAG}"
-          
-          # Extract version numbers
-          if [[ "${LATEST_TAG}" =~ ^v?([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
+          # Extract semantic version from release branch name
+          if [[ "${RELEASE_VERSION}" =~ ^v?([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
             MAJOR=${BASH_REMATCH[1]}
             MINOR=${BASH_REMATCH[2]}
             PATCH=${BASH_REMATCH[3]}
-          else
-            MAJOR=0
-            MINOR=0
-            PATCH=0
-          fi
-          
-          # Determine version bump based on release branch name
-          if [[ "${RELEASE_VERSION}" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
-            VERSION="v${RELEASE_VERSION}"
-          else
-            # Auto-increment patch version
-            PATCH=$((PATCH + 1))
             VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+            HELM_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          else
+            # Fallback if release branch doesn't follow semantic versioning pattern
+            echo "Warning: Release branch '${RELEASE_VERSION}' doesn't follow semantic versioning (x.y.z)"
+            echo "Using fallback version strategy"
+            VERSION="v1.0.0"
+            HELM_VERSION="1.0.0"
           fi
           
           IMAGE_TAG="${VERSION}"
-          HELM_VERSION="${VERSION}"
-          echo "Using release version: ${VERSION}"
+          echo "Using PPR release version: ${VERSION}"
           
         elif [[ "${{ inputs.environment }}" == "production" ]]; then
-          # Production from main branch - use date-based versioning
-          VERSION="v1.0.0-${{ steps.date.outputs.date }}-${{ steps.sha.outputs.short_sha }}"
+          # Production deployment from main branch (should ideally use tags instead)
+          echo "Warning: Production deployment from non-tag ref. Consider using tags for production."
+          
+          # Get the latest tag to use as production version
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
+          echo "Latest tag: ${LATEST_TAG}"
+          
+          # Use latest tag as production version
+          CLEAN_VERSION=${LATEST_TAG#v}
+          VERSION="v${CLEAN_VERSION}"
           IMAGE_TAG="${VERSION}"
-          HELM_VERSION="${VERSION}"
-          echo "Using production version: ${VERSION}"
+          HELM_VERSION="${CLEAN_VERSION}"
+          echo "Using production version from latest tag: ${VERSION}"
           
         elif [[ "${{ inputs.environment }}" == "ppr" ]]; then
-          # Pre-production - use same semantic version as production (from release branch)
-          # Parse release branch to get version (e.g., release/v2.1.0 -> v2.1.0)
+          # PPR deployment - should use same semantic version as would be used in production
+          # This handles PPR deployments from release branches
           if [[ "${GITHUB_REF}" =~ refs/heads/release/(.+) ]]; then
             RELEASE_VERSION="${BASH_REMATCH[1]}"
-            if [[ "${RELEASE_VERSION}" =~ ^v?([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
-              VERSION="${RELEASE_VERSION}"
-              # Ensure version starts with 'v'
-              [[ ! "${VERSION}" =~ ^v ]] && VERSION="v${VERSION}"
+            if [[ "${RELEASE_VERSION}" =~ ^v?([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+              MAJOR=${BASH_REMATCH[1]}
+              MINOR=${BASH_REMATCH[2]}
+              PATCH=${BASH_REMATCH[3]}
+              VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+              HELM_VERSION="${MAJOR}.${MINOR}.${PATCH}"
             else
-              # Fallback if release branch doesn't follow semantic versioning
-              VERSION="v1.0.0-ppr-${{ steps.date.outputs.date }}-${{ steps.sha.outputs.short_sha }}"
+              VERSION="v1.0.0"
+              HELM_VERSION="1.0.0"
             fi
           else
-            # Manual PPR deployment - use semantic version
-            VERSION="v1.0.0-ppr-${{ steps.date.outputs.date }}-${{ steps.sha.outputs.short_sha }}"
+            # PPR from non-release branch - use semantic version
+            VERSION="v1.0.0"
+            HELM_VERSION="1.0.0"
           fi
           IMAGE_TAG="${VERSION}"
-          HELM_VERSION="${VERSION}"
-          echo "Using pre-production version: ${VERSION}"
+          echo "Using PPR version: ${VERSION}"
           
         else
-          # Development/sqe - use short SHA and environment
+          # Development/SQE - use short SHA only
           VERSION="${{ inputs.environment }}-${{ steps.sha.outputs.short_sha }}"
           IMAGE_TAG="${{ inputs.environment }}-${{ steps.sha.outputs.short_sha }}"
           HELM_VERSION="0.1.0-${{ inputs.environment }}-${{ steps.sha.outputs.short_sha }}"
