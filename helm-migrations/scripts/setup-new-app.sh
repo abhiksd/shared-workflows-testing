@@ -43,6 +43,14 @@ done
 # Customize _helpers.tpl
 sed -i "s/app-template/$APP_NAME/g" helm/templates/_helpers.tpl
 
+# Customize all template files
+echo "🔧 Customizing template files..."
+for template_file in helm/templates/*.yaml; do
+    if [ -f "$template_file" ]; then
+        sed -i "s/app-template/$APP_NAME/g" "$template_file"
+    fi
+done
+
 # Update Spring Boot configs
 sed -i "s/your-app-name/$APP_NAME/g" src/main/resources/application*.yml
 

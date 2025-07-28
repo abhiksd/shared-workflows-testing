@@ -31,6 +31,7 @@ See `docs/migration-guide.md` for detailed instructions.
 ## 🛠️ Scripts
 
 - `scripts/setup-new-app.sh` - Automated setup for new applications
+- `scripts/fix-helm-templates.sh` - Fix template references in existing charts
 - `scripts/validate-chart.sh` - Validation and testing
 - `scripts/deploy-helper.sh` - Deployment utilities
 
