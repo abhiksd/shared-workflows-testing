@@ -1,0 +1,144 @@
+name: Fix ServiceMonitor Issue - Deploy Monitoring to SQE
+
+on:
+  workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: 'Force deployment even if monitoring already exists'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write
+  contents: read
+  actions: read
+
+jobs:
+  fix-servicemonitor-sqe:
+    runs-on: ubuntu-latest
+    environment: sqe
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Azure CLI
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Azure Login via OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: '3.12.0'
+
+      - name: Get AKS Credentials
+        run: |
+          az aks get-credentials \
+            --resource-group rg-aks-sqe \
+            --name aks-cluster-sqe \
+            --overwrite-existing
+
+      - name: Check ServiceMonitor CRD Status
+        id: check-crd
+        run: |
+          echo "Checking ServiceMonitor CRD availability..."
+          
+          if kubectl get crd servicemonitors.monitoring.coreos.com >/dev/null 2>&1; then
+            echo "✅ ServiceMonitor CRD already exists"
+            echo "crd_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ ServiceMonitor CRD not found"
+            echo "crd_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy Monitoring Stack
+        if: steps.check-crd.outputs.crd_exists == 'false' || inputs.force_deploy
+        run: |
+          echo "🚀 Deploying monitoring stack to SQE environment..."
+          
+          # Create monitoring namespace if it doesn't exist
+          kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+          kubectl label namespace monitoring name=monitoring --overwrite
+          
+          # Add Helm repositories
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo add grafana https://grafana.github.io/helm-charts
+          helm repo update
+          
+          # Deploy kube-prometheus-stack
+          helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+            --namespace monitoring \
+            --values helm/monitoring/values.yaml \
+            --values helm/monitoring/values-sqe.yaml \
+            --set global.environment=sqe \
+            --set global.clusterName=aks-cluster-sqe \
+            --set global.azureSubscriptionId=${{ secrets.AZURE_SUBSCRIPTION_ID }} \
+            --set global.azureResourceGroup=rg-aks-sqe \
+            --wait \
+            --timeout=600s
+          
+          echo "✅ Monitoring stack deployed successfully"
+
+      - name: Verify ServiceMonitor CRD
+        run: |
+          echo "🔍 Verifying ServiceMonitor CRD installation..."
+          
+          # Wait a bit for CRDs to be ready
+          sleep 10
+          
+          if kubectl get crd servicemonitors.monitoring.coreos.com >/dev/null 2>&1; then
+            echo "✅ ServiceMonitor CRD is now available"
+            echo "✅ Applications can now be deployed with ServiceMonitor resources"
+          else
+            echo "❌ ServiceMonitor CRD still not available"
+            echo "Checking what was installed..."
+            kubectl get crd | grep -i monitor || true
+            exit 1
+          fi
+
+      - name: Check Monitoring Stack Status
+        run: |
+          echo "📊 Monitoring stack status:"
+          echo "=========================="
+          
+          echo "Monitoring namespace pods:"
+          kubectl get pods -n monitoring
+          echo ""
+          
+          echo "ServiceMonitor CRDs:"
+          kubectl get crd | grep servicemonitor || echo "No ServiceMonitor CRDs found"
+          echo ""
+          
+          echo "Available ServiceMonitors:"
+          kubectl get servicemonitors -A || echo "No ServiceMonitors found yet"
+          echo ""
+
+      - name: Provide Next Steps
+        run: |
+          echo "🎯 ServiceMonitor Issue Fixed!"
+          echo "=============================="
+          echo ""
+          echo "✅ Prometheus Operator (kube-prometheus-stack) is now installed"
+          echo "✅ ServiceMonitor CRD is available"
+          echo "✅ You can now deploy applications with ServiceMonitor resources"
+          echo ""
+          echo "🚀 Next steps:"
+          echo "1. Re-run your failed application deployment"
+          echo "2. The ServiceMonitor error should now be resolved"
+          echo "3. Your applications will be automatically discovered by Prometheus"
+          echo ""
+          echo "🔗 Useful commands for verification:"
+          echo "kubectl get servicemonitors -A"
+          echo "kubectl get pods -n monitoring"
+          echo "kubectl port-forward -n monitoring svc/kube-prometheus-stack-prometheus 9090:9090"
