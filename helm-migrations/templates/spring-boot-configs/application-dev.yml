@@ -1,0 +1,65 @@
+# Development Environment Configuration
+
+# Server configuration
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    context-path: /api
+  error:
+    include-stacktrace: on_param
+
+# Database configuration (adjust for your database)
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb                    # CHANGE FOR YOUR DB
+    username: sa
+    password: 
+    driver-class-name: org.h2.Driver
+    
+  h2:
+    console:
+      enabled: true                            # Enable H2 console for dev
+      
+  jpa:
+    hibernate:
+      ddl-auto: create-drop                    # Safe for dev
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.H2Dialect
+
+# Logging for development
+logging:
+  level:
+    com.yourcompany.yourapp: DEBUG              # CHANGE PACKAGE NAME
+    org.springframework: INFO
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    root: INFO
+
+# Management endpoints for development
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,beans,env,configprops,mappings,httptrace
+  endpoint:
+    health:
+      show-details: always
+
+# Application configuration
+app:
+  name: Your App Name                          # CHANGE THIS
+  version: ${APP_VERSION:1.0.0-dev}
+  environment: dev
+  
+  # CORS configuration for dev
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:8080}
+    allowed-methods: "GET,POST,PUT,DELETE,OPTIONS,PATCH"
+    allowed-headers: "Content-Type,Authorization,X-Requested-With"
+    allow-credentials: true

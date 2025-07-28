@@ -1,0 +1,49 @@
+# Development environment values for Spring Boot application
+global:
+  environment: dev
+  applicationName: your-app-name
+  applicationType: java-springboot
+
+replicaCount: 1
+
+image:
+  repository: your-registry.azurecr.io/your-app-name
+  tag: "dev-latest"
+
+ingress:
+  enabled: true
+  pathPrefix: "your-app"                # CHANGE THIS
+  hosts:
+    - host: dev.yourdomain.com           # CHANGE THIS
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+env:
+  - name: ENVIRONMENT
+    value: "dev"
+  - name: APPLICATION_NAME
+    value: "your-app-name"
+  - name: PORT
+    value: "8080"
+  - name: LOG_LEVEL
+    value: "DEBUG"
+
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: false
+
+# Development-specific configurations
+livenessProbe:
+  initialDelaySeconds: 60  # Longer delay for dev debugging
+  periodSeconds: 30
+
+readinessProbe:
+  initialDelaySeconds: 30
+  periodSeconds: 10

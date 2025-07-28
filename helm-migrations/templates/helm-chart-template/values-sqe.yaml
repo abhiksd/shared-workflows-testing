@@ -1,0 +1,45 @@
+# SQE environment values for Spring Boot application
+global:
+  environment: sqe
+  applicationName: your-app-name
+  applicationType: java-springboot
+
+replicaCount: 2
+
+image:
+  repository: your-registry.azurecr.io/your-app-name
+  tag: "sqe-latest"
+
+ingress:
+  enabled: true
+  pathPrefix: "your-app"
+  hosts:
+    - host: sqe.yourdomain.com
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+
+env:
+  - name: ENVIRONMENT
+    value: "sqe"
+  - name: APPLICATION_NAME
+    value: "your-app-name"
+  - name: PORT
+    value: "8080"
+  - name: LOG_LEVEL
+    value: "INFO"
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: false  # Enable when Prometheus is available

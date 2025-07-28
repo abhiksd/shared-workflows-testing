@@ -1,0 +1,58 @@
+# Production environment values for Spring Boot application
+global:
+  environment: production
+  applicationName: your-app-name
+  applicationType: java-springboot
+
+replicaCount: 3
+
+image:
+  repository: your-registry.azurecr.io/your-app-name
+  tag: "latest"
+
+ingress:
+  enabled: true
+  pathPrefix: "your-app"
+  hosts:
+    - host: yourdomain.com
+
+resources:
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+  requests:
+    cpu: 1000m
+    memory: 1Gi
+
+env:
+  - name: ENVIRONMENT
+    value: "production"
+  - name: APPLICATION_NAME
+    value: "your-app-name"
+  - name: PORT
+    value: "8080"
+  - name: LOG_LEVEL
+    value: "WARN"
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+
+# Production-specific configurations
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+podSecurityContext:
+  fsGroup: 10001

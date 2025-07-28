@@ -1,0 +1,68 @@
+# SQE Environment Configuration
+
+# Server configuration
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    context-path: /api
+  error:
+    include-stacktrace: on_param
+
+# Database configuration (adjust for your database)
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:sqe-db.company.com}:${DB_PORT:5432}/${DB_NAME:your_app_sqe}
+    username: ${DB_USERNAME:your_app_sqe_user}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          time_zone: UTC
+
+# Logging for SQE
+logging:
+  level:
+    com.yourcompany.yourapp: INFO               # CHANGE PACKAGE NAME
+    org.springframework: WARN
+    org.springframework.web: INFO
+    org.hibernate: WARN
+    root: INFO
+
+# Management endpoints for SQE
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when_authorized
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+# Application configuration
+app:
+  name: Your App Name                          # CHANGE THIS
+  version: ${APP_VERSION:1.0.0}
+  environment: sqe
+  
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:https://sqe.yourdomain.com}
+    allowed-methods: "GET,POST,PUT,DELETE,OPTIONS,PATCH"
+    allowed-headers: "Content-Type,Authorization,X-Requested-With"
+    allow-credentials: true
