@@ -1,13 +1,13 @@
-# Node.js Backend 1 - Notification Service Deployment
+# Java Backend 1 - User Management Service Deployment
 
-This document describes how to deploy the Notification Service using the integrated GitHub Actions workflow.
+This document describes how to deploy the User Management Service using the integrated GitHub Actions workflow.
 
 ## 🏗️ **Service Overview**
 
-**Java Backend 1** is a Express.js application that handles:
-- Email notifications
-- Push notifications
-- Real-time messaging
+**Java Backend 1** is a Spring Boot application that handles:
+- User registration and authentication
+- User profile management
+- User role and permission management
 
 ## 🚀 **Deployment Methods**
 
@@ -25,7 +25,7 @@ on:
       - 'release/**'  # Release candidate deployments
       - 'feature/**'  # Feature branch deployments
     paths:
-      - 'apps/nodejs-backend1/**'        # Source code changes
+      - 'apps/java-backend1/**'        # Source code changes
       - 'helm/**'        # Helm chart changes
       - '.github/workflows/deploy.yml' # Workflow changes
 ```
@@ -41,7 +41,7 @@ gh workflow run deploy.yml -f environment=sqe
 gh workflow run deploy.yml -f environment=production
 
 # Or through GitHub UI:
-# Actions → Deploy Node.js Backend 1 - Notification Service → Run workflow
+# Actions → Deploy Java Backend 1 - User Management Service → Run workflow
 ```
 
 **Manual deployment options:**

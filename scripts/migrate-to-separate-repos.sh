@@ -19,11 +19,7 @@ SHARED_WORKFLOWS_REPO="${2:-shared-workflows}"
 # Backend services configuration
 declare -A BACKENDS=(
     ["java-backend1"]="java-backend1-user-management:User Management Service:java-springboot"
-    ["java-backend2"]="java-backend2-product-catalog:Product Catalog Service:java-springboot"
-    ["java-backend3"]="java-backend3-order-management:Order Management Service:java-springboot"
     ["nodejs-backend1"]="nodejs-backend1-notification:Notification Service:nodejs"
-    ["nodejs-backend2"]="nodejs-backend2-analytics:Analytics Service:nodejs"
-    ["nodejs-backend3"]="nodejs-backend3-file-management:File Management Service:nodejs"
 )
 
 print_header() {

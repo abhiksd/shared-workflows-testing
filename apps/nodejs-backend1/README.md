@@ -1,6 +1,6 @@
-# Node.js Backend Application
+# Node.js Backend 1 - Notification Service
 
-A production-ready Node.js backend application built with Express.js, featuring comprehensive monitoring, security, and Azure integration.
+A production-ready Node.js notification service built with Express.js, featuring comprehensive monitoring, security, and Azure integration for handling email, push, and real-time messaging notifications.
 
 ## 🚀 Features
 
@@ -145,13 +145,14 @@ The application uses environment-specific configuration files:
 - `PUT /api/users/:id` - Update user
 - `DELETE /api/users/:id` - Delete user
 
-### Products
-- `GET /api/products` - List products
-- `GET /api/products/:id` - Get product by ID
-- `POST /api/products` - Create product (Admin)
-- `PUT /api/products/:id` - Update product (Admin)
-- `DELETE /api/products/:id` - Delete product (Admin)
-- `GET /api/products/search` - Search products
+### Notifications
+- `GET /api/notifications` - List user notifications
+- `GET /api/notifications/:id` - Get notification by ID
+- `POST /api/notifications/send` - Send notification
+- `PUT /api/notifications/:id/read` - Mark notification as read
+- `DELETE /api/notifications/:id` - Delete notification
+- `POST /api/notifications/bulk-send` - Send bulk notifications
+- `GET /api/notifications/templates` - List notification templates
 
 ### Files
 - `POST /api/files/upload` - Upload file
@@ -242,8 +243,8 @@ src/
 ├── routes/             # API routes
 │   ├── auth.js         # Authentication routes
 │   ├── users.js        # User management
-│   ├── products.js     # Product management
-│   ├── orders.js       # Order management
+│   ├── notifications.js # Notification management
+│   ├── templates.js    # Notification templates
 │   ├── files.js        # File operations
 │   └── health.js       # Health checks
 └── utils/              # Utility modules

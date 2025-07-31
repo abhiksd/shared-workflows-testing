@@ -5,8 +5,8 @@ This comprehensive guide provides step-by-step instructions for verifying that a
 ## 🎯 **Overview**
 
 This guide covers verification for:
-- **Java Spring Boot Backend Services** (3 services)
-- **Node.js Express Backend Services** (3 services)
+- **Java Spring Boot Backend Service** (User Management)
+- **Node.js Express Backend Service** (Notification Service)
 - **Monitoring Stack** (Prometheus, Grafana, Loki, AlertManager)
 - **Infrastructure Components** (Ingress, Load Balancer, DNS)
 - **Security Components** (HTTPS, Authentication)
@@ -15,15 +15,11 @@ This guide covers verification for:
 
 ### **✅ Quick Verification Commands**
 ```bash
-# All Java services health check
-curl -f https://dev.mydomain.com/backend1/actuator/health
-curl -f https://dev.mydomain.com/backend2/actuator/health  
-curl -f https://dev.mydomain.com/backend3/actuator/health
+# Java service health check (User Management)
+curl -f https://dev.mydomain.com/java-backend1/actuator/health
 
-# All Node.js services health check
-curl -f https://dev.mydomain.com/backend1/health
-curl -f https://dev.mydomain.com/backend2/health
-curl -f https://dev.mydomain.com/backend3/health
+# Node.js service health check (Notification Service)
+curl -f https://dev.mydomain.com/nodejs-backend1/health
 
 # Monitoring stack health
 curl -f https://dev.mydomain.com/prometheus/-/healthy
@@ -37,9 +33,9 @@ curl -f https://dev.mydomain.com/grafana/api/health
 #### **1. Java Backend 1 - User Management Service**
 ```bash
 # Environment URLs
-DEV_URL="https://dev.mydomain.com/backend1"
-STAGING_URL="https://sqe.mydomain.com/backend1"
-PROD_URL="https://production.mydomain.com/backend1"
+DEV_URL="https://dev.mydomain.com/java-backend1"
+STAGING_URL="https://sqe.mydomain.com/java-backend1"
+PROD_URL="https://production.mydomain.com/java-backend1"
 
 # Health Checks
 echo "=== Java Backend 1 Health Checks ==="
@@ -59,53 +55,16 @@ curl -s -H "Accept: application/json" $DEV_URL/api/users | jq '.'
 # Status: {"service":"java-backend1","version":"1.0.0","environment":"dev"}
 ```
 
-#### **2. Java Backend 2 - Product Catalog Service**
-```bash
-# Environment URLs
-DEV_URL="https://dev.mydomain.com/backend2"
-STAGING_URL="https://sqe.mydomain.com/backend2"
-PROD_URL="https://production.mydomain.com/backend2"
 
-# Health Checks
-echo "=== Java Backend 2 Health Checks ==="
-curl -s $DEV_URL/actuator/health | jq '.'
-curl -s $DEV_URL/actuator/info | jq '.'
-
-# API Endpoints
-curl -s $DEV_URL/api/status | jq '.'
-curl -s -H "Accept: application/json" $DEV_URL/api/products | jq '.'
-
-# Performance Check
-time curl -s $DEV_URL/actuator/health > /dev/null
-```
-
-#### **3. Java Backend 3 - Order Management Service**
-```bash
-# Environment URLs
-DEV_URL="https://dev.mydomain.com/backend3"
-STAGING_URL="https://sqe.mydomain.com/backend3"
-PROD_URL="https://production.mydomain.com/backend3"
-
-# Health Checks
-echo "=== Java Backend 3 Health Checks ==="
-curl -s $DEV_URL/actuator/health | jq '.'
-
-# API Endpoints
-curl -s $DEV_URL/api/status | jq '.'
-curl -s -H "Accept: application/json" $DEV_URL/api/orders | jq '.'
-
-# Database Connectivity Check
-curl -s $DEV_URL/actuator/health | jq '.components.db.status'
-```
 
 ### **Node.js Express Services**
 
 #### **1. Node.js Backend 1 - Notification Service**
 ```bash
 # Environment URLs
-DEV_URL="https://dev.mydomain.com/backend1"
-STAGING_URL="https://sqe.mydomain.com/backend1"  
-PROD_URL="https://production.mydomain.com/backend1"
+DEV_URL="https://dev.mydomain.com/nodejs-backend1"
+STAGING_URL="https://sqe.mydomain.com/nodejs-backend1"  
+PROD_URL="https://production.mydomain.com/nodejs-backend1"
 
 # Health Checks
 echo "=== Node.js Backend 1 Health Checks ==="
@@ -123,38 +82,7 @@ curl -s -H "Accept: application/json" $DEV_URL/api/notifications | jq '.'
 # Health: {"status":"healthy","timestamp":"2024-01-20T10:00:00Z","uptime":3600}
 ```
 
-#### **2. Node.js Backend 2 - Analytics Service**
-```bash
-# Environment URLs  
-DEV_URL="https://dev.mydomain.com/backend2"
-STAGING_URL="https://sqe.mydomain.com/backend2"
-PROD_URL="https://production.mydomain.com/backend2"
 
-# Health Checks
-echo "=== Node.js Backend 2 Health Checks ==="
-curl -s $DEV_URL/health | jq '.'
-
-# API Endpoints
-curl -s $DEV_URL/api/status | jq '.'
-curl -s -H "Accept: application/json" $DEV_URL/api/analytics | jq '.'
-curl -s -H "Accept: application/json" $DEV_URL/api/reports | jq '.'
-```
-
-#### **3. Node.js Backend 3 - File Management Service**
-```bash
-# Environment URLs
-DEV_URL="https://dev.mydomain.com/backend3"
-STAGING_URL="https://sqe.mydomain.com/backend3"
-PROD_URL="https://production.mydomain.com/backend3"
-
-# Health Checks
-echo "=== Node.js Backend 3 Health Checks ==="
-curl -s $DEV_URL/health | jq '.'
-
-# API Endpoints
-curl -s $DEV_URL/api/status | jq '.'
-curl -s -H "Accept: application/json" $DEV_URL/api/files | jq '.'
-```
 
 ## 📊 **Monitoring Stack Verification**
 
@@ -275,9 +203,8 @@ kubectl logs -n ingress-nginx deployment/ingress-nginx-controller --tail=50
 echo | openssl s_client -servername dev.mydomain.com -connect dev.mydomain.com:443 2>/dev/null | openssl x509 -noout -dates
 
 # Test ingress routing
-curl -I https://dev.mydomain.com/backend1/actuator/health
-curl -I https://dev.mydomain.com/backend2/actuator/health  
-curl -I https://dev.mydomain.com/backend3/actuator/health
+curl -I https://dev.mydomain.com/java-backend1/actuator/health
+curl -I https://dev.mydomain.com/nodejs-backend1/health
 ```
 
 ### **DNS Resolution**
@@ -319,7 +246,7 @@ echo "=== Network Policies Verification ==="
 kubectl get networkpolicies --all-namespaces
 
 # Verify pod-to-pod communication (should work within namespace)
-kubectl exec -n default deployment/java-backend1 -- curl -s http://java-backend2:8080/actuator/health
+kubectl exec -n default deployment/java-backend1 -- curl -s http://nodejs-backend1:3000/health
 
 # Verify monitoring can scrape application metrics
 kubectl exec -n monitoring deployment/prometheus -- curl -s http://java-backend1.default.svc.cluster.local:8080/actuator/prometheus | head -5
@@ -366,22 +293,17 @@ echo "🏗️ Backend Services Health Check"
 echo "================================="
 
 # Java services
-check_url "https://$DOMAIN/backend1/actuator/health" "Java Backend 1 (User Management)"
-check_url "https://$DOMAIN/backend2/actuator/health" "Java Backend 2 (Product Catalog)"  
-check_url "https://$DOMAIN/backend3/actuator/health" "Java Backend 3 (Order Management)"
+check_url "https://$DOMAIN/java-backend1/actuator/health" "Java Backend 1 (User Management)"
 
 # Node.js services
-check_url "https://$DOMAIN/backend1/health" "Node.js Backend 1 (Notification)"
-check_url "https://$DOMAIN/backend2/health" "Node.js Backend 2 (Analytics)"
-check_url "https://$DOMAIN/backend3/health" "Node.js Backend 3 (File Management)"
+check_url "https://$DOMAIN/nodejs-backend1/health" "Node.js Backend 1 (Notification)"
 
 # API endpoints
 echo ""
 echo "🔗 API Endpoints Check"
 echo "======================"
-check_url "https://$DOMAIN/backend1/api/status" "Java Backend 1 API"
-check_url "https://$DOMAIN/backend2/api/status" "Java Backend 2 API"
-check_url "https://$DOMAIN/backend3/api/status" "Java Backend 3 API"
+check_url "https://$DOMAIN/java-backend1/api/status" "Java Backend 1 API"
+check_url "https://$DOMAIN/nodejs-backend1/api/status" "Node.js Backend 1 API"
 
 # Monitoring stack
 echo ""
@@ -395,8 +317,14 @@ check_url "https://$DOMAIN/alertmanager/-/healthy" "AlertManager Health"
 echo ""
 echo "⚡ Performance Check"
 echo "==================="
-for service in backend1 backend2 backend3; do
-    response_time=$(curl -o /dev/null -s -w "%{time_total}" "https://$DOMAIN/$service/actuator/health")
+services=("java-backend1" "nodejs-backend1")
+for service in "${services[@]}"; do
+    if [[ $service == *"java"* ]]; then
+        endpoint="actuator/health"
+    else
+        endpoint="health"
+    fi
+    response_time=$(curl -o /dev/null -s -w "%{time_total}" "https://$DOMAIN/$service/$endpoint")
     if (( $(echo "$response_time < 2.0" | bc -l) )); then
         echo "✅ $service response time: ${response_time}s"
     else
@@ -424,10 +352,15 @@ fi
 ENVIRONMENT=${1:-dev}
 DOMAIN="$ENVIRONMENT.mydomain.com"
 
-# Test each backend with light load
-for backend in backend1 backend2 backend3; do
+# Test each backend with light load  
+backends=("java-backend1" "nodejs-backend1")
+for backend in "${backends[@]}"; do
     echo "Testing $backend..."
-    hey -n 100 -c 10 -t 30 "https://$DOMAIN/$backend/actuator/health"
+    if [[ $backend == *"java"* ]]; then
+        hey -n 100 -c 10 -t 30 "https://$DOMAIN/$backend/actuator/health"
+    else
+        hey -n 100 -c 10 -t 30 "https://$DOMAIN/$backend/health"
+    fi
 done
 ```
 

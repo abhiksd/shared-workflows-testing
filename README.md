@@ -20,16 +20,28 @@ This repository serves as a **template and migration hub** for creating independ
 │   │   ├── src/, pom.xml, Dockerfile      # Complete source code
 │   │   ├── helm/                           # Kubernetes Helm charts
 │   │   └── DEPLOYMENT.md                   # Service-specific documentation
-│   ├── java-backend2/                      # Product Catalog Service (Spring Boot)
-│   ├── java-backend3/                      # Order Management Service (Spring Boot)
-│   ├── nodejs-backend1/                    # Notification Service (Express.js)
-│   ├── nodejs-backend2/                    # Analytics Service (Express.js)
-│   └── nodejs-backend3/                    # File Management Service (Express.js)
+│   └── nodejs-backend1/                    # Notification Service (Express.js)
+│       ├── .github/workflows/deploy.yml    # Individual deployment workflow
+│       ├── src/, package.json, Dockerfile # Complete source code
+│       ├── helm/                           # Kubernetes Helm charts
+│       └── DEPLOYMENT.md                   # Service-specific documentation
 ├── .github/workflows/                      # 🔄 Shared Workflow Infrastructure
 │   ├── shared-deploy.yml                  # Reusable deployment workflow
 │   ├── rollback-deployment.yml            # Centralized rollback capability
 │   ├── deploy-monitoring.yml              # Monitoring stack deployment
+│   ├── monitoring-deploy.yml              # Additional monitoring deployment
+│   ├── shared-security-scan.yml           # Shared security scanning workflow
 │   └── pr-security-check.yml              # Security validation workflow
+├── .github/actions/                        # 🔧 Composite Action Infrastructure
+│   ├── check-changes/                     # Change detection action
+│   ├── checkmarx-scan/                    # Security scanning action
+│   ├── create-release/                    # Release creation action
+│   ├── docker-build-push/                 # Docker build and push action
+│   ├── helm-deploy/                       # Helm deployment action
+│   ├── maven-build/                       # Maven build action
+│   ├── sonar-scan/                        # SonarQube scanning action
+│   ├── version-strategy/                  # Version strategy action
+│   └── workspace-cleanup/                 # Workspace cleanup action
 ├── helm/monitoring/                        # 📊 Shared monitoring infrastructure
 ├── scripts/                               # 🛠️ Infrastructure setup scripts
 ├── docs/                                  # 📚 Comprehensive setup guides
@@ -53,6 +65,12 @@ git clone https://github.com/your-org/java-backend1-user-management.git
 cp -r apps/java-backend1/* java-backend1-user-management/
 # Update workflow references to external shared workflows
 # Push to new repository
+
+# Example migration for Notification Service
+git clone https://github.com/your-org/nodejs-backend1-notifications.git
+cp -r apps/nodejs-backend1/* nodejs-backend1-notifications/
+# Update workflow references to external shared workflows
+# Push to new repository
 ```
 
 ### **Option 2: Use as Monorepo Template**
@@ -64,8 +82,12 @@ Deploy all services from this repository:
 git clone https://github.com/your-org/shared-workflows-be.git
 cd shared-workflows-be
 
-# Deploy individual service
+# Deploy Java service
 cd apps/java-backend1
+gh workflow run deploy.yml -f environment=dev
+
+# Deploy Node.js service
+cd apps/nodejs-backend1
 gh workflow run deploy.yml -f environment=dev
 
 # Deploy monitoring stack
@@ -78,15 +100,11 @@ gh workflow run deploy-monitoring.yml -f environment=dev
 | Service | Purpose | Endpoints | Status |
 |---------|---------|-----------|---------|
 | **java-backend1** | User Management | `/api/users`, `/actuator/health` | ✅ Ready |
-| **java-backend2** | Product Catalog | `/api/products`, `/actuator/health` | ✅ Ready |
-| **java-backend3** | Order Management | `/api/orders`, `/actuator/health` | ✅ Ready |
 
 ### **Node.js Express Services**
 | Service | Purpose | Endpoints | Status |
 |---------|---------|-----------|---------|
 | **nodejs-backend1** | Notification Service | `/api/notifications`, `/health` | ✅ Ready |
-| **nodejs-backend2** | Analytics Service | `/api/analytics`, `/health` | ✅ Ready |
-| **nodejs-backend3** | File Management | `/api/files`, `/health` | ✅ Ready |
 
 ## 🔄 **Shared Workflow Infrastructure**
 
@@ -104,15 +122,33 @@ gh workflow run deploy-monitoring.yml -f environment=dev
 - ✅ Multi-environment rollback support
 - ✅ Automated rollback triggers on deployment failures
 
-#### **deploy-monitoring.yml** - Monitoring Stack
+#### **deploy-monitoring.yml** & **monitoring-deploy.yml** - Monitoring Stack
 - ✅ Prometheus and Grafana deployment
 - ✅ AlertManager configuration
 - ✅ Service discovery and monitoring rules
+
+#### **shared-security-scan.yml** - Shared Security Scanning
+- ✅ Centralized security scanning workflow
+- ✅ Code quality and vulnerability assessment
+- ✅ Reusable across multiple services
 
 #### **pr-security-check.yml** - Security Validation
 - ✅ Code security scanning
 - ✅ Dependency vulnerability checks
 - ✅ Docker image security validation
+
+### **Available Composite Actions**
+
+The repository includes comprehensive composite actions in `.github/actions/`:
+- **check-changes/** - Intelligent change detection for targeted deployments
+- **checkmarx-scan/** - Security vulnerability scanning with Checkmarx
+- **create-release/** - Automated release creation and tagging
+- **docker-build-push/** - Docker image building and registry pushing
+- **helm-deploy/** - Kubernetes Helm chart deployment
+- **maven-build/** - Java Maven project building and testing
+- **sonar-scan/** - Code quality analysis with SonarQube
+- **version-strategy/** - Semantic versioning and release management
+- **workspace-cleanup/** - Build environment cleanup and optimization
 
 ## 📚 **Comprehensive Documentation**
 
@@ -199,12 +235,16 @@ gh workflow run deploy-monitoring.yml -f environment=dev
 
 ### **3. Deploy Services**
 ```bash
-# Deploy individual services
+# Deploy services
 cd apps/java-backend1
 gh workflow run deploy.yml -f environment=dev
 
-# Verify deployment
-curl https://dev.mydomain.com/backend1/actuator/health
+cd apps/nodejs-backend1
+gh workflow run deploy.yml -f environment=dev
+
+# Verify deployments
+curl https://dev.mydomain.com/java-backend1/actuator/health
+curl https://dev.mydomain.com/nodejs-backend1/health
 ```
 
 ## 📞 **Support & Contributing**
@@ -231,15 +271,11 @@ curl https://dev.mydomain.com/backend1/actuator/health
 
 ### **Health Check Endpoints**
 ```bash
-# Java Services
-curl https://dev.mydomain.com/backend1/actuator/health
-curl https://dev.mydomain.com/backend2/actuator/health
-curl https://dev.mydomain.com/backend3/actuator/health
+# Java Service - User Management
+curl https://dev.mydomain.com/java-backend1/actuator/health
 
-# Node.js Services  
-curl https://dev.mydomain.com/backend1/health
-curl https://dev.mydomain.com/backend2/health
-curl https://dev.mydomain.com/backend3/health
+# Node.js Service - Notifications
+curl https://dev.mydomain.com/nodejs-backend1/health
 ```
 
 ---

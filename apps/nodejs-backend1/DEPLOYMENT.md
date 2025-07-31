@@ -4,7 +4,7 @@ This document describes how to deploy the Notification Service using the integra
 
 ## 🏗️ **Service Overview**
 
-**Java Backend 1** is a Express.js application that handles:
+**Node.js Backend 1** is an Express.js application that handles:
 - Email notifications
 - Push notifications
 - Real-time messaging

@@ -1,6 +1,6 @@
-# Java Spring Boot Application with JDK 21
+# Java Backend 1 - User Management Service
 
-A simple Spring Boot REST API application built with Java 21 and packaged in a Docker container.
+A Spring Boot REST API application for user management built with Java 21 and packaged in a Docker container.
 
 ## Features
 
@@ -19,11 +19,18 @@ A simple Spring Boot REST API application built with Java 21 and packaged in a D
 
 ## API Endpoints
 
-- `GET /` - Welcome message with Java version info
-- `GET /hello` - Simple hello world message
-- `GET /hello/{name}` - Personalized greeting
-- `GET /health` - Health check endpoint
+### User Management
+- `GET /api/users` - List all users (Admin only)
+- `GET /api/users/{id}` - Get user by ID
+- `POST /api/users` - Create new user
+- `PUT /api/users/{id}` - Update user
+- `DELETE /api/users/{id}` - Delete user
+
+### Health & Monitoring
+- `GET /health` - Basic health check endpoint
 - `GET /actuator/health` - Detailed health information
+- `GET /actuator/metrics` - Application metrics
+- `GET /actuator/info` - Application information
 
 ## Local Development
 

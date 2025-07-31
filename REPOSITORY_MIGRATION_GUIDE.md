@@ -13,11 +13,11 @@ This guide explains how to migrate from the current monorepo structure to separa
 │   │   ├── src/, pom.xml, Dockerfile
 │   │   ├── helm/                   # ✅ Now included!
 │   │   └── DEPLOYMENT.md
-│   ├── java-backend2/              # 🎁 Self-contained with helm chart
-│   ├── java-backend3/              # 🎁 Self-contained with helm chart
-│   ├── nodejs-backend1/            # 🎁 Self-contained with helm chart
-│   ├── nodejs-backend2/            # 🎁 Self-contained with helm chart
-│   └── nodejs-backend3/            # 🎁 Self-contained with helm chart
+│   └── nodejs-backend1/            # 🎁 Self-contained with helm chart
+│       ├── .github/workflows/deploy.yml
+│       ├── src/, package.json, Dockerfile
+│       ├── helm/                   # ✅ Now included!
+│       └── DEPLOYMENT.md
 ├── .github/workflows/
 │   └── shared-deploy.yml           # 🔄 Will become external
 └── scripts/deploy-all-backends.sh
@@ -31,11 +31,11 @@ This guide explains how to migrate from the current monorepo structure to separa
 ├── helm/                          # ✅ Included Helm chart
 └── DEPLOYMENT.md                  # Service-specific documentation
 
-📁 java-backend2-repo              # 🚀 Independent repository
-📁 java-backend3-repo              # 🚀 Independent repository  
 📁 nodejs-backend1-repo            # 🚀 Independent repository
-📁 nodejs-backend2-repo            # 🚀 Independent repository
-📁 nodejs-backend3-repo            # 🚀 Independent repository
+├── .github/workflows/deploy.yml   # Calls external shared workflow
+├── src/, package.json, Dockerfile # All source code  
+├── helm/                          # ✅ Included Helm chart
+└── DEPLOYMENT.md                  # Service-specific documentation
 
 📁 shared-workflows-repo           # 🛠️ Centralized workflow management
 ├── .github/workflows/
@@ -104,11 +104,7 @@ git push origin main
 ```bash
 # Create repositories for each backend
 gh repo create your-org/java-backend1-user-management --public
-gh repo create your-org/java-backend2-product-catalog --public
-gh repo create your-org/java-backend3-order-management --public
 gh repo create your-org/nodejs-backend1-notification --public
-gh repo create your-org/nodejs-backend2-analytics --public
-gh repo create your-org/nodejs-backend3-file-management --public
 ```
 
 ### **Step 3: Migrate Each Backend (Example: java-backend1)**
@@ -192,11 +188,8 @@ git push origin main
 #!/bin/bash
 
 backends=(
-    "java-backend2:java-backend2-product-catalog:Product Catalog Service"
-    "java-backend3:java-backend3-order-management:Order Management Service"
+    "java-backend1:java-backend1-user-management:User Management Service"
     "nodejs-backend1:nodejs-backend1-notification:Notification Service"
-    "nodejs-backend2:nodejs-backend2-analytics:Analytics Service"
-    "nodejs-backend3:nodejs-backend3-file-management:File Management Service"
 )
 
 for backend_info in "${backends[@]}"; do
