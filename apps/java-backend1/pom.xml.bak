@@ -14,8 +14,8 @@
     <groupId>com.example</groupId>
     <artifactId>java-backend1</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>java-backend1-user-management</name>
-    <description>User Management Service for Spring Boot with Java 21</description>
+    <name>java-backend1</name>
+    <description>Demo project for Spring Boot with Java 21</description>
     
     <properties>
         <java.version>21</java.version>

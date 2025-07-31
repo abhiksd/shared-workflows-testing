@@ -1,7 +1,7 @@
 {
-  "name": "nodejs-backend-app",
+  "name": "nodejs-backend1-notification-service",
   "version": "1.0.0",
-  "description": "Production-ready Node.js backend application with monitoring, security, and Azure integration",
+  "description": "Production-ready Node.js notification service with monitoring, security, and Azure integration",
   "main": "src/app.js",
   "scripts": {
     "start": "node src/app.js",
@@ -13,8 +13,8 @@
     "lint:fix": "eslint src/ tests/ --fix",
     "format": "prettier --write src/ tests/",
     "build": "npm run lint && npm test",
-    "docker:build": "docker build -t nodejs-backend-app .",
-    "docker:run": "docker run -p 3000:3000 nodejs-backend-app",
+    "docker:build": "docker build -t nodejs-backend1 .",
+    "docker:run": "docker run -p 3000:3000 nodejs-backend1",
     "migrate": "knex migrate:latest",
     "migrate:rollback": "knex migrate:rollback",
     "seed": "knex seed:run",

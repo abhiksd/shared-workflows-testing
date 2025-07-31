@@ -49,6 +49,6 @@ jobs:
       application_type: nodejs
       build_context: apps/nodejs-backend1
       dockerfile_path: apps/nodejs-backend1/Dockerfile
-      helm_chart_path: helm
+      helm_chart_path: apps/nodejs-backend1/helm
       force_deploy: ${{ github.event.inputs.force_deploy == 'true' }}
     secrets: inherit

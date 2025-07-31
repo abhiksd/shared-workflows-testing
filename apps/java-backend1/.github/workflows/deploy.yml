@@ -49,6 +49,6 @@ jobs:
       application_type: java-springboot
       build_context: apps/java-backend1
       dockerfile_path: apps/java-backend1/Dockerfile
-      helm_chart_path: helm
+      helm_chart_path: apps/java-backend1/helm
       force_deploy: ${{ github.event.inputs.force_deploy == 'true' }}
     secrets: inherit

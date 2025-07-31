@@ -83,9 +83,9 @@ jobs:
               TARGET_ENV="dev"
             elif [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
               TARGET_ENV="sqe"
-            elif [[ "$GITHUB_REF" == refs/heads/release/* ]]; then
+            elif [[ "$GITHUB_REF" == "refs/heads/release/"* ]]; then
               TARGET_ENV="ppr"
-            elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            elif [[ "$GITHUB_REF" == "refs/tags/"* ]]; then
               TARGET_ENV="production"
             else
               echo "❌ Auto environment detection failed: unsupported branch $GITHUB_REF"
@@ -120,7 +120,7 @@ jobs:
               fi
               ;;
             "ppr")
-              if [[ "$GITHUB_REF" == refs/heads/release/* ]] || [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+              if [[ "$GITHUB_REF" == "refs/heads/release/"* ]] || [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
                 SHOULD_DEPLOY="true"
                 AKS_CLUSTER="${{ env.AKS_CLUSTER_NAME_PPR }}"
                 AKS_RG="${{ env.AKS_RESOURCE_GROUP_PPR }}"
@@ -130,7 +130,7 @@ jobs:
               fi
               ;;
             "production")
-              if [[ "$GITHUB_REF" == refs/tags/* ]] || [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+              if [[ "$GITHUB_REF" == "refs/tags/"* ]] || [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
                 SHOULD_DEPLOY="true"
                 AKS_CLUSTER="${{ env.AKS_CLUSTER_NAME_PROD }}"
                 AKS_RG="${{ env.AKS_RESOURCE_GROUP_PROD }}"

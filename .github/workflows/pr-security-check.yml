@@ -27,7 +27,7 @@ jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      java-app-changed: ${{ steps.changes.outputs.java-app }}
+      java-backend1-changed: ${{ steps.changes.outputs.java-backend1 }}
       nodejs-app-changed: ${{ steps.changes.outputs.nodejs-app }}
       should-run-security: ${{ steps.changes.outputs.should-run }}
     steps:
@@ -41,38 +41,35 @@ jobs:
         uses: dorny/paths-filter@v2
         with:
           filters: |
-            java-app:
-              - 'apps/java-app/**'
-              - 'helm/java-app/**'
-              - '.github/workflows/deploy-java-app.yml'
+            java-backend1:
+              - 'apps/java-backend1/**'
+              - 'helm/**'
+              - '.github/workflows/deploy.yml'
               - '.github/workflows/shared-deploy.yml'
               - '.github/actions/**'
             nodejs-app:
-              - 'apps/nodejs-app/**'
-              - 'helm/nodejs-app/**'
-              - '.github/workflows/deploy-nodejs-app.yml'
+              - 'apps/nodejs-backend1/**'
+              - 'helm/**'
+              - '.github/workflows/deploy.yml'
               - '.github/workflows/shared-deploy.yml'
               - '.github/actions/**'
 
       - name: Determine Security Scan Requirement
         id: should-run
         run: |
-          # Load common utilities
-          source scripts/common-utils.sh
-          
-          if [[ "${{ steps.changes.outputs.java-app }}" == "true" || "${{ steps.changes.outputs.nodejs-app }}" == "true" ]]; then
+          if [[ "${{ steps.changes.outputs.java-backend1 }}" == "true" || "${{ steps.changes.outputs.nodejs-app }}" == "true" ]]; then
             echo "should-run=true" >> $GITHUB_OUTPUT
-            log_info "Application changes detected - security scans required"
+            echo "✅ Application changes detected - security scans required"
           else
             echo "should-run=false" >> $GITHUB_OUTPUT
-            log_info "No application changes detected - skipping security scans"
+            echo "ℹ️ No application changes detected - skipping security scans"
           fi
 
   # Security scan for Java application
-  java-app-security:
+  java-backend1-security:
     runs-on: ubuntu-latest
     needs: detect-changes
-    if: needs.detect-changes.outputs.java-app-changed == 'true'
+    if: needs.detect-changes.outputs.java-backend1-changed == 'true'
     outputs:
       security-status: ${{ steps.security.outputs.security-status }}
       sonar-status: ${{ steps.security.outputs.sonar-status }}
@@ -95,20 +92,20 @@ jobs:
 
       - name: Build Java Application
         run: |
-          cd apps/java-app
+          cd apps/java-backend1
           mvn clean compile test-compile -B
 
       - name: SonarQube Scan
         id: sonar
         uses: ./.github/actions/sonar-scan
         with:
-          application_name: java-app
+          application_name: java-backend1
           application_type: java-springboot
-          build_context: apps/java-app
+          build_context: apps/java-backend1
           sonar_enabled: ${{ vars.SONAR_ENABLED || 'true' }}
           sonar_host_url: ${{ vars.SONAR_HOST_URL }}
           sonar_token: ${{ secrets.SONAR_TOKEN }}
-          sonar_project_key: ${{ vars.SONAR_PROJECT_KEY || 'java-app' }}
+          sonar_project_key: ${{ vars.SONAR_PROJECT_KEY || 'java-backend1' }}
           sonar_coverage_threshold: ${{ vars.SONAR_PR_COVERAGE_THRESHOLD || vars.SONAR_COVERAGE_THRESHOLD || '75' }}
           sonar_reliability_rating: ${{ vars.SONAR_PR_RELIABILITY_RATING || vars.SONAR_RELIABILITY_RATING || '1' }}
           sonar_security_rating: ${{ vars.SONAR_PR_SECURITY_RATING || vars.SONAR_SECURITY_RATING || '1' }}
@@ -118,9 +115,9 @@ jobs:
         id: checkmarx
         uses: ./.github/actions/checkmarx-scan
         with:
-          application_name: java-app
+          application_name: java-backend1
           application_type: java-springboot
-          build_context: apps/java-app
+          build_context: apps/java-backend1
           checkmarx_enabled: ${{ vars.CHECKMARX_ENABLED || 'true' }}
           checkmarx_url: ${{ vars.CHECKMARX_URL }}
           cx_tenant: ${{ vars.CX_TENANT }}
@@ -170,29 +167,29 @@ jobs:
         with:
           node-version: '18'
           cache: 'npm'
-          cache-dependency-path: apps/nodejs-app/package-lock.json
+          cache-dependency-path: apps/nodejs-backend1/package-lock.json
 
       - name: Install Node.js Dependencies
         run: |
-          cd apps/nodejs-app
+          cd apps/nodejs-backend1
           npm ci
 
       - name: Build Node.js Application
         run: |
-          cd apps/nodejs-app
+          cd apps/nodejs-backend1
           npm run build || true  # Don't fail if no build script
 
       - name: SonarQube Scan
         id: sonar
         uses: ./.github/actions/sonar-scan
         with:
-          application_name: nodejs-app
+          application_name: nodejs-backend1
           application_type: nodejs
-          build_context: apps/nodejs-app
+          build_context: apps/nodejs-backend1
           sonar_enabled: ${{ vars.SONAR_ENABLED || 'true' }}
           sonar_host_url: ${{ vars.SONAR_HOST_URL }}
           sonar_token: ${{ secrets.SONAR_TOKEN }}
-          sonar_project_key: ${{ vars.SONAR_PROJECT_KEY || 'nodejs-app' }}
+          sonar_project_key: ${{ vars.SONAR_PROJECT_KEY || 'nodejs-backend1' }}
           sonar_coverage_threshold: ${{ vars.SONAR_PR_COVERAGE_THRESHOLD || vars.SONAR_COVERAGE_THRESHOLD || '75' }}
           sonar_reliability_rating: ${{ vars.SONAR_PR_RELIABILITY_RATING || vars.SONAR_RELIABILITY_RATING || '1' }}
           sonar_security_rating: ${{ vars.SONAR_PR_SECURITY_RATING || vars.SONAR_SECURITY_RATING || '1' }}
@@ -202,9 +199,9 @@ jobs:
         id: checkmarx
         uses: ./.github/actions/checkmarx-scan
         with:
-          application_name: nodejs-app
+          application_name: nodejs-backend1
           application_type: nodejs
-          build_context: apps/nodejs-app
+          build_context: apps/nodejs-backend1
           checkmarx_enabled: ${{ vars.CHECKMARX_ENABLED || 'true' }}
           checkmarx_url: ${{ vars.CHECKMARX_URL }}
           cx_tenant: ${{ vars.CX_TENANT }}
@@ -239,7 +236,7 @@ jobs:
   # Security Summary and PR Comment
   security-summary:
     runs-on: ubuntu-latest
-    needs: [detect-changes, java-app-security, nodejs-app-security]
+    needs: [detect-changes, java-backend1-security, nodejs-app-security]
     if: always() && needs.detect-changes.outputs.should-run-security == 'true'
     permissions:
       pull-requests: write
@@ -253,7 +250,7 @@ jobs:
           echo "📋 Generating comprehensive security summary..."
           
           OVERALL_STATUS="PASSED"
-          JAVA_STATUS="${{ needs.java-app-security.outputs.security-status || 'SKIPPED' }}"
+          JAVA_STATUS="${{ needs.java-backend1-security.outputs.security-status || 'SKIPPED' }}"
           NODEJS_STATUS="${{ needs.nodejs-app-security.outputs.security-status || 'SKIPPED' }}"
           
           # Determine overall status
@@ -272,9 +269,9 @@ jobs:
           |-------------|--------|-----------|------------------|
           EOF
           
-          if [[ "${{ needs.detect-changes.outputs.java-app-changed }}" == "true" ]]; then
+          if [[ "${{ needs.detect-changes.outputs.java-backend1-changed }}" == "true" ]]; then
             cat >> pr-comment.md << EOF
-          | **Java App** | ${{ needs.java-app-security.outputs.security-status == 'PASSED' && '✅ PASSED' || '❌ FAILED' }} | ${{ needs.java-app-security.outputs.sonar-status || 'N/A' }} | ${{ needs.java-app-security.outputs.checkmarx-results || 'N/A' }} |
+          | **Java App** | ${{ needs.java-backend1-security.outputs.security-status == 'PASSED' && '✅ PASSED' || '❌ FAILED' }} | ${{ needs.java-backend1-security.outputs.sonar-status || 'N/A' }} | ${{ needs.java-backend1-security.outputs.checkmarx-results || 'N/A' }} |
           EOF
           fi
           
@@ -380,12 +377,12 @@ jobs:
   # Final security gate
   security-gate:
     runs-on: ubuntu-latest
-    needs: [detect-changes, java-app-security, nodejs-app-security, security-summary]
+    needs: [detect-changes, java-backend1-security, nodejs-app-security, security-summary]
     if: always() && needs.detect-changes.outputs.should-run-security == 'true'
     steps:
       - name: Security Gate Check
         run: |
-          JAVA_STATUS="${{ needs.java-app-security.outputs.security-status || 'SKIPPED' }}"
+          JAVA_STATUS="${{ needs.java-backend1-security.outputs.security-status || 'SKIPPED' }}"
           NODEJS_STATUS="${{ needs.nodejs-app-security.outputs.security-status || 'SKIPPED' }}"
           
           echo "🔒 Security Gate Evaluation:"

@@ -119,7 +119,7 @@ jobs:
           
           echo "should_deploy_dev=$DEV" >> $GITHUB_OUTPUT
           echo "should_deploy_sqe=$STAGING" >> $GITHUB_OUTPUT
-        echo "should_deploy_ppr=$STAGING" >> $GITHUB_OUTPUT
+          echo "should_deploy_ppr=$STAGING" >> $GITHUB_OUTPUT
           echo "should_deploy_production=$PRODUCTION" >> $GITHUB_OUTPUT
           echo "deployment_reason=$REASON" >> $GITHUB_OUTPUT
           
