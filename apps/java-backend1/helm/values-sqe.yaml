@@ -1,48 +1,190 @@
-# Staging environment values for java-backend1
-global:
+# SQE (Staging/QA) Environment Values
+# Configuration for staging environment with testing optimizations
+
+# Application configuration
+app:
+  name: java-backend1-user-management
+  version: "1.0.0"
   environment: sqe
-  applicationName: java-backend1
-  applicationType: java-springboot
+  
+# Spring Boot profile
+springboot:
+  profiles:
+    active: "sqe"
 
-replicaCount: 2
-
+# Image configuration
 image:
   repository: myregistry.azurecr.io/java-backend1
-  tag: "sqe-latest"
+  tag: "develop"  # Use develop branch builds for SQE
+  pullPolicy: Always
 
-ingress:
-  enabled: true
-  pathPrefix: "backend1"
-  proxyBodySize: "1024m"
-  hosts:
-    - host: sqe.mydomain.com
+# Replica configuration for testing
+replicaCount: 2  # Smaller than production for cost efficiency
 
+# Resource limits for SQE
 resources:
   limits:
     cpu: 1000m
-    memory: 2Gi
+    memory: 1Gi
   requests:
     cpu: 500m
-    memory: 1Gi
+    memory: 512Mi
 
-env:
-  - name: ENVIRONMENT
-    value: "sqe"
-  - name: APPLICATION_NAME
-    value: "java-backend1"
-  - name: SERVER_PORT
-    value: "8080"
-  - name: SPRING_PROFILES_ACTIVE
-    value: "sqe"
-  - name: LOG_LEVEL
-    value: "INFO"
+# Database configuration
+database:
+  host: "postgres-sqe.internal.company.com"
+  port: "5432"
+  name: "userdb_sqe"
+  username: "userapp_sqe"
+  # Password comes from secret
 
-autoscaling:
+# External services (SQE environment URLs)
+externalServices:
+  notificationService:
+    url: "http://nodejs-backend1-notification.sqe.svc.cluster.local:3000"
+    timeout: "10000"
+
+# JWT configuration
+security:
+  jwt:
+    expiration: "7200000"  # 2 hours for extended testing sessions
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 8080
+  targetPort: 8080
+
+# Ingress configuration for SQE
+ingress:
   enabled: true
-  minReplicas: 2
-  maxReplicas: 5
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: sqe.mydomain.com
+      paths:
+        - path: /java-backend1
+          pathType: Prefix
+  tls:
+    - secretName: sqe-tls-secret
+      hosts:
+        - sqe.mydomain.com
 
+# Health checks
+healthcheck:
+  enabled: true
+  livenessProbe:
+    httpGet:
+      path: /actuator/health/liveness
+      port: 8080
+    initialDelaySeconds: 60
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /actuator/health/readiness
+      port: 8080
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# Monitoring configuration
 monitoring:
   enabled: true
-  servicemonitor:
+  serviceMonitor:
     enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+    path: /actuator/prometheus
+
+# Logging configuration
+logging:
+  level: INFO
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClass: "standard"
+
+# ConfigMap data specific to SQE
+configMap:
+  APPLICATION_NAME: "java-backend1-user-management"
+  SPRING_PROFILES_ACTIVE: "sqe"
+  SERVER_PORT: "8080"
+  
+  # Database settings
+  DB_HOST: "postgres-sqe.internal.company.com"
+  DB_PORT: "5432"
+  DB_NAME: "userdb_sqe"
+  DB_USERNAME: "userapp_sqe"
+  DB_POOL_SIZE: "15"
+  DB_POOL_MIN_IDLE: "5"
+  
+  # JPA settings
+  JPA_DDL_AUTO: "validate"
+  JPA_SHOW_SQL: "false"
+  
+  # Logging levels
+  LOG_LEVEL_ROOT: "WARN"
+  LOG_LEVEL_APP: "INFO"
+  LOG_LEVEL_SECURITY: "WARN"
+  LOG_LEVEL_SQL: "WARN"
+  
+  # Health check settings
+  HEALTH_SHOW_DETAILS: "when-authorized"
+  
+  # External services
+  NOTIFICATION_SERVICE_URL: "http://nodejs-backend1-notification.sqe.svc.cluster.local:3000"
+  NOTIFICATION_SERVICE_TIMEOUT: "10000"
+  
+  # JWT settings
+  JWT_EXPIRATION: "7200000"
+
+# Secret data (passwords, keys, etc.)
+secrets:
+  # Database password (base64 encoded)
+  DB_PASSWORD: ""  # To be set via sealed secrets or external secret operator
+  # JWT secret (base64 encoded)
+  JWT_SECRET: ""   # To be set via sealed secrets or external secret operator
+
+# Pod Security Context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+# Security Context
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+# Node selector for SQE environment
+nodeSelector:
+  environment: sqe
+  
+# Tolerations for SQE nodes
+tolerations:
+  - key: "environment"
+    operator: "Equal"
+    value: "sqe"
+    effect: "NoSchedule"
+
+# Affinity rules
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - java-backend1
+          topologyKey: kubernetes.io/hostname

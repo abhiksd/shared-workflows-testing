@@ -1,54 +1,249 @@
-# Production environment values for java-backend1
-global:
+# PPR (Pre-Production) Environment Values
+# Production-like configuration for final validation before production deployment
+
+# Application configuration
+app:
+  name: java-backend1-user-management
+  version: "1.0.0"
   environment: ppr
-  applicationName: java-backend1
-  applicationType: java-springboot
+  
+# Spring Boot profile
+springboot:
+  profiles:
+    active: "ppr"
 
-replicaCount: 3
-
+# Image configuration
 image:
   repository: myregistry.azurecr.io/java-backend1
-  tag: "ppr-latest"
+  tag: "release-candidate"  # Use release candidate builds for PPR
+  pullPolicy: Always
 
-ingress:
-  enabled: true
-  pathPrefix: "backend1"
-  proxyBodySize: "1024m"
-  hosts:
-    - host: ppr.mydomain.com
+# Replica configuration - production-like
+replicaCount: 3  # Close to production but slightly smaller
 
+# Resource limits for PPR - production-like
 resources:
   limits:
-    cpu: 2000m
-    memory: 4Gi
-  requests:
-    cpu: 1000m
+    cpu: 1500m
     memory: 2Gi
+  requests:
+    cpu: 750m
+    memory: 1Gi
 
-env:
-  - name: ENVIRONMENT
-    value: "ppr"
-  - name: APPLICATION_NAME
-    value: "java-backend1"
-  - name: SERVER_PORT
-    value: "8080"
-  - name: SPRING_PROFILES_ACTIVE
-    value: "ppr"
-  - name: LOG_LEVEL
-    value: "WARN"
+# Database configuration
+database:
+  host: "postgres-ppr.internal.company.com"
+  port: "5432"
+  name: "userdb_ppr"
+  username: "userapp_ppr"
+  # Password comes from secret
 
+# External services (PPR environment URLs)
+externalServices:
+  notificationService:
+    url: "http://nodejs-backend1-notification.ppr.svc.cluster.local:3000"
+    timeout: "5000"  # Same as production
+
+# JWT configuration - production-like
+security:
+  jwt:
+    expiration: "3600000"  # 1 hour - same as production
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 8080
+  targetPort: 8080
+
+# Ingress configuration for PPR
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/rate-limit: "100"  # Rate limiting like production
+  hosts:
+    - host: ppr.mydomain.com
+      paths:
+        - path: /java-backend1
+          pathType: Prefix
+  tls:
+    - secretName: ppr-tls-secret
+      hosts:
+        - ppr.mydomain.com
+
+# Health checks - production-like
+healthcheck:
+  enabled: true
+  livenessProbe:
+    httpGet:
+      path: /actuator/health/liveness
+      port: 8080
+    initialDelaySeconds: 90  # Longer for production-like startup
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /actuator/health/readiness
+      port: 8080
+    initialDelaySeconds: 45
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# Monitoring configuration
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+    path: /actuator/prometheus
+
+# Logging configuration
+logging:
+  level: WARN  # Production-like logging
+  persistence:
+    enabled: true
+    size: 10Gi  # Larger storage for production-like testing
+    storageClass: "premium"
+
+# Autoscaling - production-like
 autoscaling:
   enabled: true
   minReplicas: 3
-  maxReplicas: 10
+  maxReplicas: 6
   targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 80
 
-monitoring:
-  enabled: true
-  servicemonitor:
-    enabled: true
+# ConfigMap data specific to PPR
+configMap:
+  APPLICATION_NAME: "java-backend1-user-management"
+  SPRING_PROFILES_ACTIVE: "ppr"
+  SERVER_PORT: "8080"
+  
+  # Database settings - production-like
+  DB_HOST: "postgres-ppr.internal.company.com"
+  DB_PORT: "5432"
+  DB_NAME: "userdb_ppr"
+  DB_USERNAME: "userapp_ppr"
+  DB_POOL_SIZE: "18"  # Slightly smaller than production
+  DB_POOL_MIN_IDLE: "8"
+  
+  # JPA settings - production
+  JPA_DDL_AUTO: "none"
+  JPA_SHOW_SQL: "false"
+  
+  # Logging levels - production-like
+  LOG_LEVEL_ROOT: "ERROR"
+  LOG_LEVEL_APP: "WARN"
+  LOG_LEVEL_SECURITY: "ERROR"
+  LOG_LEVEL_SQL: "ERROR"
+  
+  # Health check settings - production security
+  HEALTH_SHOW_DETAILS: "never"
+  
+  # External services
+  NOTIFICATION_SERVICE_URL: "http://nodejs-backend1-notification.ppr.svc.cluster.local:3000"
+  NOTIFICATION_SERVICE_TIMEOUT: "5000"
+  
+  # JWT settings - production-like
+  JWT_EXPIRATION: "3600000"
 
+# Secret data (passwords, keys, etc.)
+secrets:
+  # Database password (base64 encoded)
+  DB_PASSWORD: ""  # To be set via sealed secrets or external secret operator
+  # JWT secret (base64 encoded)
+  JWT_SECRET: ""   # To be set via sealed secrets or external secret operator
+
+# Pod Security Context - production security
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+# Security Context - production security
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# Node selector for PPR environment
+nodeSelector:
+  environment: ppr
+  instance-type: "production-grade"
+  
+# Tolerations for PPR nodes
+tolerations:
+  - key: "environment"
+    operator: "Equal"
+    value: "ppr"
+    effect: "NoSchedule"
+  - key: "instance-type"
+    operator: "Equal"
+    value: "production-grade"
+    effect: "NoSchedule"
+
+# Affinity rules - production-like placement
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+            - key: app.kubernetes.io/name
+              operator: In
+              values:
+                - java-backend1
+        topologyKey: kubernetes.io/hostname
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: instance-type
+              operator: In
+              values:
+                - "production-grade"
+
+# Network Policies for production-like security
+networkPolicy:
+  enabled: true
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: nodejs-backend1
+      ports:
+        - protocol: TCP
+          port: 3000
+
+# Pod Disruption Budget
 podDisruptionBudget:
   enabled: true
   minAvailable: 2

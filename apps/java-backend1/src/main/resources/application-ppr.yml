@@ -1,0 +1,65 @@
+# PPR (Pre-Production) Environment Profile
+# Nearly identical to production with minimal differences for final validation
+
+spring:
+  # JPA/Hibernate configuration for PPR - identical to production
+  jpa:
+    hibernate:
+      ddl-auto: none  # Never auto-create/update schema in pre-prod
+    show-sql: false   # Never log SQL in pre-prod
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+
+# PPR logging - production-like with slightly more detail for final validation
+logging:
+  level:
+    root: ERROR
+    com.example.userservice: WARN    # Slightly more verbose than production
+    org.springframework.security: ERROR
+    org.hibernate.SQL: ERROR
+  file:
+    name: /var/log/app/application-ppr.log
+  logback:
+    rollingpolicy:
+      max-file-size: 100MB
+      max-history: 21  # 3 weeks retention (slightly more than production)
+
+# PPR management endpoints - production-like security
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus  # Limited endpoints like production
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: never  # Never expose health details in pre-prod
+  security:
+    enabled: true
+
+# PPR-specific app configuration
+app:
+  security:
+    jwt:
+      # JWT secret MUST be provided via environment variable
+      secret: ${JWT_SECRET}
+      expiration: ${JWT_EXPIRATION:3600000}  # 1 hour - same as production
+  
+  external:
+    notification-service:
+      url: ${NOTIFICATION_SERVICE_URL}
+      timeout: ${NOTIFICATION_SERVICE_TIMEOUT:5000}  # Same as production
+
+# PPR database optimizations - production-like settings
+spring.datasource.hikari:
+  maximum-pool-size: ${DB_POOL_SIZE:18}  # Slightly smaller than production
+  minimum-idle: ${DB_POOL_MIN_IDLE:8}    # Slightly smaller than production
+  connection-timeout: 30000
+  idle-timeout: 600000
+  max-lifetime: 1800000
+  leak-detection-threshold: 30000

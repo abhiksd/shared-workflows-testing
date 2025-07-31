@@ -1,0 +1,64 @@
+# SQE (Staging/QA) Environment Profile
+# Production-like configuration with additional debugging capabilities for testing
+
+spring:
+  # JPA/Hibernate configuration for SQE
+  jpa:
+    hibernate:
+      ddl-auto: validate  # Use existing schema but allow validation
+    show-sql: false      # Don't log SQL in staging (performance)
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          batch_size: 15   # Smaller batch size for testing
+        order_inserts: true
+        order_updates: true
+
+# SQE logging - balanced for testing and debugging
+logging:
+  level:
+    root: WARN
+    com.example.userservice: INFO    # More verbose for testing
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+  file:
+    name: /var/log/app/application-sqe.log
+  logback:
+    rollingpolicy:
+      max-file-size: 50MB
+      max-history: 14  # 2 weeks retention
+
+# SQE management endpoints - more details for testing
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,env  # Include env for debugging
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when-authorized  # Show details when authorized for testing
+  security:
+    enabled: true
+
+# SQE-specific app configuration
+app:
+  security:
+    jwt:
+      secret: ${JWT_SECRET}
+      expiration: ${JWT_EXPIRATION:7200000}  # 2 hours for extended testing
+  
+  external:
+    notification-service:
+      url: ${NOTIFICATION_SERVICE_URL}
+      timeout: ${NOTIFICATION_SERVICE_TIMEOUT:10000}  # Longer timeout for testing
+
+# SQE database optimizations - smaller pools for testing environment
+spring.datasource.hikari:
+  maximum-pool-size: ${DB_POOL_SIZE:15}
+  minimum-idle: ${DB_POOL_MIN_IDLE:5}
+  connection-timeout: 30000
+  idle-timeout: 600000
+  max-lifetime: 1800000
+  leak-detection-threshold: 45000
