@@ -1,21 +1,24 @@
-# Base Spring Boot Configuration
-# This file contains common configuration for all environments
+# Base Configuration for Java Backend 1 - User Management Service
+# Common settings shared across all environments
 
 spring:
   application:
-    name: java-app
+    name: java-backend1-user-management
   
-  # Profile configuration
+  # Default profile (can be overridden by environment variable)
   profiles:
-    active: local
+    active: ${SPRING_PROFILES_ACTIVE:local}
   
-  # Database configuration (will be overridden by profiles)
+  # Database configuration with environment variable placeholders
   datasource:
     driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:userdb}
+    username: ${DB_USERNAME:user}
+    password: ${DB_PASSWORD:password}
     hikari:
       connection-timeout: 20000
-      maximum-pool-size: 10
-      minimum-idle: 5
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+      minimum-idle: ${DB_POOL_MIN_IDLE:5}
       idle-timeout: 300000
       max-lifetime: 1200000
       leak-detection-threshold: 60000
@@ -23,132 +26,58 @@ spring:
   # JPA/Hibernate configuration
   jpa:
     hibernate:
-      ddl-auto: validate
-    show-sql: false
+      ddl-auto: ${JPA_DDL_AUTO:validate}
+    show-sql: ${JPA_SHOW_SQL:false}
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
-        use_sql_comments: true
-        jdbc:
-          batch_size: 20
-        order_inserts: true
-        order_updates: true
-        jdbc.batch_versioned_data: true
-  
-  # Jackson configuration
-  jackson:
-    default-property-inclusion: NON_NULL
-    serialization:
-      write-dates-as-timestamps: false
-    deserialization:
-      fail-on-unknown-properties: false
-  
-  # Security configuration
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          # Will be configured per environment
-          issuer-uri: ${OAUTH2_ISSUER_URI:}
+        format_sql: false
 
 # Server configuration
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
   servlet:
     context-path: /api
-    encoding:
-      charset: UTF-8
-      enabled: true
-      force: true
-  error:
-    include-message: always
-    include-binding-errors: always
-    include-stacktrace: on_param
-  compression:
-    enabled: true
-    min-response-size: 1024
 
-# Management/Actuator configuration
+# Management/Actuator endpoints
 management:
   endpoints:
     web:
       exposure:
         include: health,info,metrics,prometheus
-      base-path: /actuator
   endpoint:
     health:
-      show-details: when-authorized
-      show-components: always
-    metrics:
-      enabled: true
-    prometheus:
-      enabled: true
+      show-details: ${HEALTH_SHOW_DETAILS:when-authorized}
   metrics:
     export:
       prometheus:
         enabled: true
-    distribution:
-      percentiles-histogram:
-        http.server.requests: true
-      percentiles:
-        http.server.requests: 0.5, 0.95, 0.99
-      slo:
-        http.server.requests: 10ms,50ms,100ms,200ms,500ms
-  health:
-    diskspace:
-      enabled: true
-    db:
-      enabled: true
 
 # Logging configuration
 logging:
   level:
-    root: INFO
-    com.example.javaapp: INFO
-    org.springframework.security: INFO
-    org.springframework.web: INFO
-    org.hibernate.SQL: ERROR
-    org.hibernate.type.descriptor.sql.BasicBinder: ERROR
+    root: ${LOG_LEVEL_ROOT:INFO}
+    com.example.userservice: ${LOG_LEVEL_APP:INFO}
+    org.springframework.security: ${LOG_LEVEL_SECURITY:WARN}
+    org.hibernate.SQL: ${LOG_LEVEL_SQL:WARN}
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId},%X{spanId}] %logger{36} - %msg%n"
-    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId},%X{spanId}] %logger{36} - %msg%n"
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
 
 # Application-specific configuration
 app:
-  name: Java Application
-  version: '@project.version@'
-  description: Production-grade Java Spring Boot application
+  name: "User Management Service"
+  version: "@project.version@"
+  description: "Handles user registration, authentication, and profile management"
   
-  # Feature toggles
-  features:
-    enable-caching: true
-    enable-metrics: true
-    enable-tracing: false
+  # JWT configuration
+  security:
+    jwt:
+      secret: ${JWT_SECRET:defaultsecret}
+      expiration: ${JWT_EXPIRATION:86400000} # 24 hours
   
-  # API configuration
-  api:
-    rate-limit:
-      requests-per-minute: 1000
-    timeout:
-      read: 30s
-      connect: 10s
-  
-  # Cache configuration
-  cache:
-    default-ttl: 300
-    max-entries: 1000
-  
-  # External service configuration
-  external-services:
-    timeout: 30s
-    retry-attempts: 3
-    circuit-breaker:
-      failure-threshold: 5
-      timeout: 60s
-
-# Custom health indicators
-health:
-  custom:
-    enabled: true
-    timeout: 5s
+  # External service URLs (will be overridden by environment)
+  external:
+    notification-service:
+      url: ${NOTIFICATION_SERVICE_URL:http://localhost:3000}
+      timeout: ${NOTIFICATION_SERVICE_TIMEOUT:5000}

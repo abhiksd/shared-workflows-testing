@@ -1,321 +1,65 @@
 # Production Environment Profile
-# Enterprise-grade configuration with maximum security and performance
+# Production-ready configuration with security and performance optimizations
+
 spring:
-  profiles:
-    active: production
-  
-  # PostgreSQL Database Configuration
-  datasource:
-    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
-    driver-class-name: org.postgresql.Driver
-    hikari:
-      maximum-pool-size: ${DB_POOL_SIZE:20}
-      minimum-idle: ${DB_POOL_MIN_IDLE:10}
-      connection-timeout: 30000
-      idle-timeout: 600000
-      max-lifetime: 1800000
-      leak-detection-threshold: 30000
-      connection-test-query: SELECT 1
-      validation-timeout: 5000
-      initialization-fail-timeout: 1
-      isolate-internal-queries: true
-      allow-pool-suspension: true
-      read-only: false
-      register-mbeans: true
-      catalog: ${DB_CATALOG:}
-      connection-init-sql: SET timezone='UTC'
-  
-  # JPA Configuration  
+  # JPA/Hibernate configuration for production
   jpa:
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
-      ddl-auto: none
-    show-sql: false
+      ddl-auto: none  # Never auto-create/update schema in production
+    show-sql: false   # Never log SQL in production
     properties:
       hibernate:
         format_sql: false
-        use_sql_comments: false
+        jdbc:
+          batch_size: 20
         order_inserts: true
         order_updates: true
-        jdbc:
-          time_zone: UTC
-          batch_size: 25
-          fetch_size: 150
-        default_schema: ${DB_SCHEMA:public}
-        connection:
-          provider_disables_autocommit: true
-        cache:
-          use_second_level_cache: true
-          use_query_cache: true
-          region:
-            factory_class: org.hibernate.cache.jcache.JCacheRegionFactory
-        id:
-          new_generator_mappings: true
-        generate_statistics: true
-  
-  # Redis Configuration
-  redis:
-    host: ${REDIS_HOST}
-    port: ${REDIS_PORT:6379}
-    password: ${REDIS_PASSWORD}
-    timeout: 2000ms
-    database: ${REDIS_DATABASE:0}
-    ssl: ${REDIS_SSL:true}
-    lettuce:
-      pool:
-        max-active: ${REDIS_POOL_MAX_ACTIVE:20}
-        max-idle: ${REDIS_POOL_MAX_IDLE:15}
-        min-idle: ${REDIS_POOL_MIN_IDLE:5}
-        max-wait: 1000ms
-      cluster:
-        refresh:
-          adaptive: true
-          period: 60s
-      shutdown-timeout: 100ms
-  
-  # Cache Configuration
-  cache:
-    type: redis
-    redis:
-      time-to-live: ${CACHE_TTL:3600000}  # 1 hour
-      cache-null-values: false
-      key-prefix: "prod:cache:"
-      use-key-prefix: true
-  
-  # Security Configuration
-  security:
-    oauth2:
-      client:
-        registration:
-          azure:
-            client-id: ${AZURE_CLIENT_ID}
-            client-secret: ${AZURE_CLIENT_SECRET}
-            scope: openid,profile,email
-            redirect-uri: ${APP_BASE_URL}/login/oauth2/code/azure
-            authorization-grant-type: authorization_code
-        provider:
-          azure:
-            authorization-uri: https://login.microsoftonline.com/${AZURE_TENANT_ID}/oauth2/v2.0/authorize
-            token-uri: https://login.microsoftonline.com/${AZURE_TENANT_ID}/oauth2/v2.0/token
-            user-info-uri: https://graph.microsoft.com/v1.0/me
-            user-name-attribute: name
-            jwk-set-uri: https://login.microsoftonline.com/${AZURE_TENANT_ID}/discovery/v2.0/keys
 
-# Server Configuration
-server:
-  port: ${SERVER_PORT:8080}
-  servlet:
-    context-path: /api
-    session:
-      timeout: ${SESSION_TIMEOUT:1800s}
-      cookie:
-        secure: true
-        http-only: true
-        same-site: strict
-  error:
-    include-stacktrace: never
-    include-message: never
-    include-binding-errors: never
-  compression:
-    enabled: true
-    mime-types: text/html,text/xml,text/plain,text/css,text/javascript,application/javascript,application/json
-    min-response-size: 1024
-  http2:
-    enabled: true
-  ssl:
-    enabled: ${SSL_ENABLED:true}
-    key-store: ${SSL_KEYSTORE_PATH}
-    key-store-password: ${SSL_KEYSTORE_PASSWORD}
-    key-store-type: ${SSL_KEYSTORE_TYPE:PKCS12}
-    key-alias: ${SSL_KEY_ALIAS}
-    protocol: TLS
-    enabled-protocols: TLSv1.2,TLSv1.3
-    ciphers: ${SSL_CIPHERS}
-
-# Logging Configuration
+# Production logging - minimal and secure
 logging:
   level:
-    com.example.javaapp: ${LOG_LEVEL_APP:INFO}
-    org.springframework.web: WARN
-    org.springframework.security: WARN
-    org.springframework.cache: WARN
+    root: ERROR
+    com.example.userservice: WARN
+    org.springframework.security: ERROR
     org.hibernate.SQL: ERROR
-    org.hibernate.type.descriptor.sql.BasicBinder: ERROR
-    org.apache.tomcat: WARN
-    org.springframework.web.servlet.mvc.method.annotation: ERROR
-    org.springframework.boot.actuate: WARN
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId:-},%X{spanId:-}] %logger{36} - %msg%n"
-    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId:-},%X{spanId:-}] %logger{36} - %msg%n"
   file:
-    name: ${LOG_FILE_PATH:/var/log/java-app/java-app-production.log}
-    max-size: ${LOG_MAX_SIZE:500MB}
-    max-history: ${LOG_MAX_HISTORY:90}
-    total-size-cap: ${LOG_TOTAL_SIZE:20GB}
+    name: /var/log/app/application.log
+  logback:
+    rollingpolicy:
+      max-file-size: 100MB
+      max-history: 30
 
-# Management & Actuator
+# Production management endpoints - security focused
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,prometheus
+        include: health,info,metrics,prometheus  # Limited endpoints only
       base-path: /actuator
-    enabled-by-default: false
   endpoint:
     health:
-      enabled: true
-      show-details: never
-      show-components: never
-      probes:
-        enabled: true
-    info:
-      enabled: true
-    metrics:
-      enabled: true
-    prometheus:
-      enabled: true
-  health:
-    diskspace:
-      enabled: true
-      threshold: ${HEALTH_DISK_THRESHOLD:10GB}
-    redis:
-      enabled: true
-    db:
-      enabled: true
-  metrics:
-    export:
-      prometheus:
-        enabled: true
-        descriptions: false
-        step: 60s
-    distribution:
-      percentiles-histogram:
-        http.server.requests: true
-      percentiles:
-        http.server.requests: 0.5,0.9,0.95,0.99
-      slo:
-        http.server.requests: 50ms,100ms,200ms,300ms,400ms,500ms,1s,2s
-    tags:
-      application: java-app
-      environment: production
-      region: ${AZURE_REGION}
-      version: ${APP_VERSION}
-  tracing:
-    sampling:
-      probability: ${TRACING_SAMPLE_RATE:0.1}
-
-# Application Configuration
-app:
-  name: Java App
-  version: ${APP_VERSION}
-  environment: production
-  
-  # CORS Configuration
-  cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS}
-    allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,DELETE,OPTIONS}
-    allowed-headers: ${CORS_ALLOWED_HEADERS:Content-Type,Authorization,X-Requested-With,X-API-Key}
-    allow-credentials: ${CORS_ALLOW_CREDENTIALS:true}
-    max-age: ${CORS_MAX_AGE:3600}
-  
-  # JWT Configuration
-  jwt:
-    secret: ${JWT_SECRET}
-    expiration: ${JWT_EXPIRATION:3600000}  # 1 hour
-    refresh-expiration: ${JWT_REFRESH_EXPIRATION:86400000}  # 24 hours
-    issuer: ${JWT_ISSUER}
-    audience: ${JWT_AUDIENCE}
-    algorithm: ${JWT_ALGORITHM:HS512}
-  
-  # Rate Limiting
-  rate-limit:
-    enabled: ${RATE_LIMIT_ENABLED:true}
-    requests-per-minute: ${RATE_LIMIT_RPM:300}
-    burst-capacity: ${RATE_LIMIT_BURST:100}
-    
-  # File Upload
-  upload:
-    max-file-size: ${MAX_FILE_SIZE:50MB}
-    max-request-size: ${MAX_REQUEST_SIZE:200MB}
-    temp-dir: ${TEMP_DIR:/tmp/uploads}
-    allowed-types: ${ALLOWED_FILE_TYPES}
-  
-  # Feature Flags
-  features:
-    new-api-enabled: ${FEATURE_NEW_API:false}
-    advanced-search: ${FEATURE_ADVANCED_SEARCH:true}
-    beta-features: ${FEATURE_BETA:false}
-    maintenance-mode: ${MAINTENANCE_MODE:false}
-  
-  # Security Headers
+      show-details: never  # Never expose health details in production
   security:
-    headers:
-      frame-options: DENY
-      content-type-options: nosniff
-      xss-protection: "1; mode=block"
-      referrer-policy: strict-origin-when-cross-origin
-      permissions-policy: ${PERMISSIONS_POLICY}
+    enabled: true
 
-# Azure Configuration
-azure:
-  application-insights:
-    instrumentation-key: ${AZURE_APP_INSIGHTS_KEY}
-    connection-string: ${AZURE_APP_INSIGHTS_CONNECTION_STRING}
-    
-  storage:
-    account-name: ${AZURE_STORAGE_ACCOUNT}
-    account-key: ${AZURE_STORAGE_KEY}
-    container-name: ${AZURE_STORAGE_CONTAINER}
-    endpoint: ${AZURE_STORAGE_ENDPOINT}
+# Production-specific app configuration
+app:
+  security:
+    jwt:
+      # JWT secret MUST be provided via environment variable
+      secret: ${JWT_SECRET}
+      expiration: ${JWT_EXPIRATION:3600000}  # 1 hour default
+  
+  external:
+    notification-service:
+      url: ${NOTIFICATION_SERVICE_URL}
+      timeout: ${NOTIFICATION_SERVICE_TIMEOUT:5000}
 
-# Database Migration
-flyway:
-  enabled: ${FLYWAY_ENABLED:true}
-  baseline-on-migrate: false
-  validate-on-migrate: true
-  clean-disabled: true
-  locations: classpath:db/migration
-  table: flyway_schema_history
-  baseline-version: 1.0.0
-
-# Connection Pooling
-hikari:
-  auto-commit: false
-  connection-test-query: SELECT 1
+# Production database optimizations
+spring.datasource.hikari:
   maximum-pool-size: ${DB_POOL_SIZE:20}
   minimum-idle: ${DB_POOL_MIN_IDLE:10}
-  pool-name: ProductionHikariPool
-  thread-factory: ProductionHikariThreadFactory
-
-# Thread Pool Configuration
-task:
-  execution:
-    pool:
-      core-size: ${TASK_POOL_CORE_SIZE:10}
-      max-size: ${TASK_POOL_MAX_SIZE:50}
-      queue-capacity: ${TASK_POOL_QUEUE_SIZE:1000}
-      keep-alive: 60s
-    thread-name-prefix: "async-task-"
-  scheduling:
-    pool:
-      size: ${SCHEDULING_POOL_SIZE:5}
-    thread-name-prefix: "scheduled-task-"
-
-# Graceful Shutdown
-server:
-  shutdown: graceful
-spring:
-  lifecycle:
-    timeout-per-shutdown-phase: ${SHUTDOWN_TIMEOUT:30s}
-
-# Production Monitoring
-alerts:
-  enabled: ${ALERTS_ENABLED:true}
-  webhook-url: ${ALERTS_WEBHOOK_URL}
-  
-healthcheck:
-  interval: ${HEALTHCHECK_INTERVAL:30s}
-  timeout: ${HEALTHCHECK_TIMEOUT:10s}
-  retries: ${HEALTHCHECK_RETRIES:3}
+  connection-timeout: 30000
+  idle-timeout: 600000
+  max-lifetime: 1800000
+  leak-detection-threshold: 30000
