@@ -243,47 +243,29 @@ jobs:
   sonar-scan:
     runs-on: ubuntu-latest
     needs: [validate-environment, setup, maven-build]
-    if: needs.validate-environment.outputs.should_deploy == 'true' && needs.setup.outputs.should_deploy == 'true' && !failure() && !cancelled()
+    if: needs.validate-environment.outputs.should_deploy == 'true' && needs.setup.outputs.should_deploy == 'true' && (vars.SONAR_ENABLED == 'true' || vars.SONAR_ENABLED == '' || vars.SONAR_ENABLED == null) && !failure() && !cancelled()
     outputs:
-      scan_status: ${{ steps.check_enabled.outputs.scan_status || steps.sonar.outputs.scan_status }}
+      scan_status: ${{ steps.sonar.outputs.scan_status }}
       quality_gate_status: ${{ steps.sonar.outputs.quality_gate_status }}
       coverage: ${{ steps.sonar.outputs.coverage }}
     steps:
-      - name: Check if SonarQube is enabled
-        id: check_enabled
-        run: |
-          SONAR_ENABLED="${{ vars.SONAR_ENABLED || 'true' }}"
-          echo "🔍 SonarQube enabled: $SONAR_ENABLED"
-          
-          if [[ "$SONAR_ENABLED" == "false" ]]; then
-            echo "⏭️ SonarQube scanning is disabled - skipping"
-            echo "scan_status=SKIPPED" >> $GITHUB_OUTPUT
-            echo "enabled=false" >> $GITHUB_OUTPUT
-          else
-            echo "✅ SonarQube scanning is enabled - proceeding"
-            echo "enabled=true" >> $GITHUB_OUTPUT
-          fi
-
       - name: Clean workspace
-        if: steps.check_enabled.outputs.enabled == 'true'
         uses: ./.github/actions/workspace-cleanup
         with:
           cleanup_docker: 'false'
           cleanup_temp: 'true'
 
       - name: Checkout
-        if: steps.check_enabled.outputs.enabled == 'true'
         uses: actions/checkout@v4
 
       - name: Download Maven build artifacts
-        if: steps.check_enabled.outputs.enabled == 'true' && inputs.application_type == 'java-springboot'
+        if: inputs.application_type == 'java-springboot'
         uses: actions/download-artifact@v4
         with:
           name: ${{ needs.maven-build.outputs.jar_artifact }}
           path: ${{ inputs.build_context }}
 
       - name: SonarQube Scan
-        if: steps.check_enabled.outputs.enabled == 'true'
         id: sonar
         uses: ./.github/actions/sonar-scan
         with:
@@ -299,50 +281,46 @@ jobs:
           sonar_security_rating: ${{ vars.SONAR_SECURITY_RATING || '1' }}
           sonar_maintainability_rating: ${{ vars.SONAR_MAINTAINABILITY_RATING || '2' }}
 
+  sonar-scan-skipped:
+    runs-on: ubuntu-latest
+    needs: [validate-environment, setup, maven-build]
+    if: needs.validate-environment.outputs.should_deploy == 'true' && needs.setup.outputs.should_deploy == 'true' && vars.SONAR_ENABLED == 'false' && !failure() && !cancelled()
+    outputs:
+      scan_status: "SKIPPED"
+      quality_gate_status: "SKIPPED"
+      coverage: "N/A"
+    steps:
+      - name: SonarQube Scan Skipped
+        run: |
+          echo "⏭️ SonarQube scanning is disabled (SONAR_ENABLED=false)"
+          echo "✅ Scan status: SKIPPED"
+
   checkmarx-scan:
     runs-on: ubuntu-latest
     needs: [validate-environment, setup, maven-build]
-    if: needs.validate-environment.outputs.should_deploy == 'true' && needs.setup.outputs.should_deploy == 'true' && !failure() && !cancelled()
+    if: needs.validate-environment.outputs.should_deploy == 'true' && needs.setup.outputs.should_deploy == 'true' && (vars.CHECKMARX_ENABLED == 'true' || vars.CHECKMARX_ENABLED == '' || vars.CHECKMARX_ENABLED == null) && !failure() && !cancelled()
     outputs:
-      scan_status: ${{ steps.check_enabled.outputs.scan_status || steps.checkmarx.outputs.scan_status }}
+      scan_status: ${{ steps.checkmarx.outputs.scan_status }}
       overall_results: ${{ steps.checkmarx.outputs.overall_results }}
       scan_id: ${{ steps.checkmarx.outputs.scan_id }}
     steps:
-      - name: Check if Checkmarx is enabled
-        id: check_enabled
-        run: |
-          CHECKMARX_ENABLED="${{ vars.CHECKMARX_ENABLED || 'true' }}"
-          echo "🔍 Checkmarx enabled: $CHECKMARX_ENABLED"
-          
-          if [[ "$CHECKMARX_ENABLED" == "false" ]]; then
-            echo "⏭️ Checkmarx scanning is disabled - skipping"
-            echo "scan_status=SKIPPED" >> $GITHUB_OUTPUT
-            echo "enabled=false" >> $GITHUB_OUTPUT
-          else
-            echo "✅ Checkmarx scanning is enabled - proceeding"
-            echo "enabled=true" >> $GITHUB_OUTPUT
-          fi
-
       - name: Clean workspace
-        if: steps.check_enabled.outputs.enabled == 'true'
         uses: ./.github/actions/workspace-cleanup
         with:
           cleanup_docker: 'false'
           cleanup_temp: 'true'
 
       - name: Checkout
-        if: steps.check_enabled.outputs.enabled == 'true'
         uses: actions/checkout@v4
 
       - name: Download Maven build artifacts
-        if: steps.check_enabled.outputs.enabled == 'true' && inputs.application_type == 'java-springboot'
+        if: inputs.application_type == 'java-springboot'
         uses: actions/download-artifact@v4
         with:
           name: ${{ needs.maven-build.outputs.jar_artifact }}
           path: ${{ inputs.build_context }}
 
       - name: Checkmarx Scan
-        if: steps.check_enabled.outputs.enabled == 'true'
         id: checkmarx
         uses: ./.github/actions/checkmarx-scan
         with:
@@ -363,10 +341,30 @@ jobs:
           checkmarx_medium_threshold: ${{ vars.CHECKMARX_MEDIUM_THRESHOLD || '5' }}
           checkmarx_low_threshold: ${{ vars.CHECKMARX_LOW_THRESHOLD || '10' }}
 
+  checkmarx-scan-skipped:
+    runs-on: ubuntu-latest
+    needs: [validate-environment, setup, maven-build]
+    if: needs.validate-environment.outputs.should_deploy == 'true' && needs.setup.outputs.should_deploy == 'true' && vars.CHECKMARX_ENABLED == 'false' && !failure() && !cancelled()
+    outputs:
+      scan_status: "SKIPPED"
+      overall_results: "N/A"
+      scan_id: "N/A"
+    steps:
+      - name: Checkmarx Scan Skipped
+        run: |
+          echo "⏭️ Checkmarx scanning is disabled (CHECKMARX_ENABLED=false)"
+          echo "✅ Scan status: SKIPPED"
+
   build:
     runs-on: ubuntu-latest
-    needs: [validate-environment, setup, maven-build, sonar-scan, checkmarx-scan]
-    if: needs.validate-environment.outputs.should_deploy == 'true' && needs.setup.outputs.should_deploy == 'true' && (needs.sonar-scan.outputs.scan_status == 'PASSED' || needs.sonar-scan.outputs.scan_status == 'SKIPPED') && (needs.checkmarx-scan.outputs.scan_status == 'PASSED' || needs.checkmarx-scan.outputs.scan_status == 'SKIPPED') && !failure() && !cancelled()
+    needs: [validate-environment, setup, maven-build, sonar-scan, checkmarx-scan, sonar-scan-skipped, checkmarx-scan-skipped]
+    if: |
+      always() &&
+      needs.validate-environment.outputs.should_deploy == 'true' &&
+      needs.setup.outputs.should_deploy == 'true' &&
+      (needs.sonar-scan.result == 'success' || needs.sonar-scan-skipped.result == 'success') &&
+      (needs.checkmarx-scan.result == 'success' || needs.checkmarx-scan-skipped.result == 'success') &&
+      !contains(needs.*.result, 'failure')
     steps:
       - name: Clean workspace and Docker
         uses: ./.github/actions/workspace-cleanup
@@ -400,9 +398,16 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
-    needs: [validate-environment, setup, sonar-scan, checkmarx-scan, build]
+    needs: [validate-environment, setup, sonar-scan, checkmarx-scan, sonar-scan-skipped, checkmarx-scan-skipped, build]
     
-    if: needs.validate-environment.outputs.should_deploy == 'true' && needs.setup.outputs.should_deploy == 'true' && (needs.sonar-scan.outputs.scan_status == 'PASSED' || needs.sonar-scan.outputs.scan_status == 'SKIPPED') && (needs.checkmarx-scan.outputs.scan_status == 'PASSED' || needs.checkmarx-scan.outputs.scan_status == 'SKIPPED') && !failure() && !cancelled()
+    if: |
+      always() &&
+      needs.validate-environment.outputs.should_deploy == 'true' &&
+      needs.setup.outputs.should_deploy == 'true' &&
+      needs.build.result == 'success' &&
+      (needs.sonar-scan.result == 'success' || needs.sonar-scan-skipped.result == 'success') &&
+      (needs.checkmarx-scan.result == 'success' || needs.checkmarx-scan-skipped.result == 'success') &&
+      !contains(needs.*.result, 'failure')
 
     environment: ${{ needs.validate-environment.outputs.target_environment }}
     steps:

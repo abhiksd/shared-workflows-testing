@@ -73,28 +73,33 @@ Result: Both scans run as normal
 
 ### **When Scans are Enabled (`true`)**
 ```yaml
-# SonarQube Job
+# SonarQube Job runs
 sonar-scan:
+  if: vars.SONAR_ENABLED == 'true' || vars.SONAR_ENABLED == '' || vars.SONAR_ENABLED == null
   steps:
-    - name: Check if SonarQube is enabled
-      run: echo "✅ SonarQube scanning is enabled - proceeding"
-    
     - name: SonarQube Scan
       uses: ./.github/actions/sonar-scan
       # ... scan executes normally
+
+# SonarQube Skip Job does NOT run
+sonar-scan-skipped:
+  if: vars.SONAR_ENABLED == 'false'  # This condition is false, so job is skipped
 ```
 
 ### **When Scans are Disabled (`false`)**
 ```yaml
-# SonarQube Job  
+# SonarQube Job does NOT run
 sonar-scan:
+  if: vars.SONAR_ENABLED == 'true' || vars.SONAR_ENABLED == '' || vars.SONAR_ENABLED == null  # This condition is false
+
+# SonarQube Skip Job runs instead
+sonar-scan-skipped:
+  if: vars.SONAR_ENABLED == 'false'  # This condition is true
+  outputs:
+    scan_status: "SKIPPED"
   steps:
-    - name: Check if SonarQube is enabled
-      run: echo "⏭️ SonarQube scanning is disabled - skipping"
-      outputs:
-        scan_status: "SKIPPED"
-    
-    # All other steps are skipped conditionally
+    - name: SonarQube Scan Skipped
+      run: echo "⏭️ SonarQube scanning is disabled (SONAR_ENABLED=false)"
 ```
 
 ## 📊 **Scan Status Handling**
@@ -119,22 +124,31 @@ if: |
 ### **Shared Deployment Workflow**
 ```yaml
 # .github/workflows/shared-deploy.yml
+
+# SonarQube job - only runs when enabled
 sonar-scan:
+  runs-on: ubuntu-latest
+  if: vars.SONAR_ENABLED == 'true' || vars.SONAR_ENABLED == '' || vars.SONAR_ENABLED == null
   steps:
-    - name: Check if SonarQube is enabled
-      id: check_enabled
-      run: |
-        SONAR_ENABLED="${{ vars.SONAR_ENABLED || 'true' }}"
-        if [[ "$SONAR_ENABLED" == "false" ]]; then
-          echo "scan_status=SKIPPED" >> $GITHUB_OUTPUT
-          echo "enabled=false" >> $GITHUB_OUTPUT
-        else
-          echo "enabled=true" >> $GITHUB_OUTPUT
-        fi
-    
     - name: SonarQube Scan
-      if: steps.check_enabled.outputs.enabled == 'true'
       uses: ./.github/actions/sonar-scan
+
+# SonarQube skipped job - only runs when disabled  
+sonar-scan-skipped:
+  runs-on: ubuntu-latest
+  if: vars.SONAR_ENABLED == 'false'
+  outputs:
+    scan_status: "SKIPPED"
+  steps:
+    - name: SonarQube Scan Skipped
+      run: echo "⏭️ SonarQube scanning is disabled (SONAR_ENABLED=false)"
+
+# Build job depends on both scan jobs
+build:
+  needs: [sonar-scan, sonar-scan-skipped, checkmarx-scan, checkmarx-scan-skipped]
+  if: |
+    (needs.sonar-scan.result == 'success' || needs.sonar-scan-skipped.result == 'success') &&
+    (needs.checkmarx-scan.result == 'success' || needs.checkmarx-scan-skipped.result == 'success')
 ```
 
 ### **PR Security Check Workflow**
